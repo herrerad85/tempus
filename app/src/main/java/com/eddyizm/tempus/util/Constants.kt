@@ -119,9 +119,6 @@ object Constants {
 
     const val SHARE_OBJECT = "share_object"
 
-    const val PLAYABLE_MEDIA_LIMIT = 100
-    const val PRE_PLAYABLE_MEDIA = 15
-
     const val HOME_SECTOR_DISCOVERY = "HOME_SECTOR_DISCOVERY"
     const val HOME_SECTOR_MADE_FOR_YOU = "HOME_SECTOR_MADE_FOR_YOU"
     const val HOME_SECTOR_BEST_OF = "HOME_SECTOR_BEST_OF"

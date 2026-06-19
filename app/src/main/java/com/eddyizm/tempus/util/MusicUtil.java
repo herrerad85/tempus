@@ -530,24 +530,7 @@ public class MusicUtil {
         return browser.getMediaMetadata().extras.getString("suffix", null);
     }
 
-    public static List<Child> limitPlayableMedia(List<Child> toLimit, int position) {
-        if (!toLimit.isEmpty() && toLimit.size() > Constants.PLAYABLE_MEDIA_LIMIT) {
-            int from = position < Constants.PRE_PLAYABLE_MEDIA ? 0 : position - Constants.PRE_PLAYABLE_MEDIA;
-            int to = Math.min(from + Constants.PLAYABLE_MEDIA_LIMIT, toLimit.size());
 
-            return toLimit.subList(from, to);
-        }
-
-        return toLimit;
-    }
-
-    public static int getPlayableMediaPosition(List<Child> toLimit, int position) {
-        if (!toLimit.isEmpty() && toLimit.size() > Constants.PLAYABLE_MEDIA_LIMIT) {
-            return Math.min(position, Constants.PRE_PLAYABLE_MEDIA);
-        }
-
-        return position;
-    }
 
     private static ConnectivityManager getConnectivityManager() {
         return (ConnectivityManager) App.getContext().getSystemService(Context.CONNECTIVITY_SERVICE);

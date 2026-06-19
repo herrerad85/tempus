@@ -352,8 +352,11 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<SongHorizontalAd
             Child tappedSong = differ.getCurrentList().get(pos);
 
             Bundle bundle = new Bundle();
-            bundle.putParcelableArrayList(Constants.TRACKS_OBJECT, new ArrayList<>(MusicUtil.limitPlayableMedia(differ.getCurrentList(), getBindingAdapterPosition())));
-            bundle.putInt(Constants.ITEM_POSITION, MusicUtil.getPlayableMediaPosition(differ.getCurrentList(), getBindingAdapterPosition()));
+            // Queue the whole list and start at the tapped track, matching the Play button.
+            // Previously this windowed the queue to a fixed cap, so tapping a track in a large
+            // playlist only enqueued the first ~100 songs instead of all of them (#788).
+            bundle.putParcelableArrayList(Constants.TRACKS_OBJECT, new ArrayList<>(differ.getCurrentList()));
+            bundle.putInt(Constants.ITEM_POSITION, pos);
 
             if (tappedSong.getId().equals(currentPlayingId)) {
                 Log.i("SongHorizontalAdapter", "Tapping on currently playing song, toggling playback");
