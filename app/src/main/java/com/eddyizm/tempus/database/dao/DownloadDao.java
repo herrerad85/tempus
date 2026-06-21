@@ -12,10 +12,12 @@ import java.util.List;
 
 @Dao
 public interface DownloadDao {
-    @Query("SELECT * FROM download WHERE download_state = 1 ORDER BY artist, album, disc_number, track ASC")
+    // Group by the album (album_id keeps same-titled albums apart) before disc/track, so
+    // multi-artist albums stay in metadata order. Sorting by track artist first split them. See #309.
+    @Query("SELECT * FROM download WHERE download_state = 1 ORDER BY album, album_id, disc_number, track ASC")
     LiveData<List<Download>> getAll();
 
-    @Query("SELECT * FROM download WHERE download_state = 1 ORDER BY artist, album, disc_number, track ASC")
+    @Query("SELECT * FROM download WHERE download_state = 1 ORDER BY album, album_id, disc_number, track ASC")
     List<Download> getAllSync();
 
     @Query("SELECT * FROM download WHERE id = :id")
