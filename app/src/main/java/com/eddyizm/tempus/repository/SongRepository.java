@@ -8,6 +8,7 @@ import androidx.lifecycle.MutableLiveData;
 import com.eddyizm.tempus.App;
 import com.eddyizm.tempus.subsonic.base.ApiResponse;
 import com.eddyizm.tempus.subsonic.models.Child;
+import com.eddyizm.tempus.subsonic.models.Starred2;
 import com.eddyizm.tempus.subsonic.models.SubsonicResponse;
 import com.eddyizm.tempus.util.Constants.SeedType;
 
@@ -58,6 +59,42 @@ public class SongRepository {
                 });
 
         return starredSongs;
+    }
+
+    /**
+     * Single getStarred2 fetch for the home tab's starred-derived mix sections (issue #694).
+     * Made for you / Best of / Radio stations used to each fire their own identical getStarred2
+     * during the cold-start request burst, so any one losing the race left its section silently
+     * empty. Posts the parsed Starred2 on success (an empty Starred2 when the server has no starred
+     * items), or null on a failed/unsuccessful response so the caller can retry instead of caching
+     * empty.
+     */
+    public MutableLiveData<Starred2> getStarred() {
+        MutableLiveData<Starred2> starred = new MutableLiveData<>();
+
+        App.getSubsonicClientInstance(false)
+                .getAlbumSongListClient()
+                .getStarred2()
+                .enqueue(new Callback<ApiResponse>() {
+                    @Override
+                    public void onResponse(@NonNull Call<ApiResponse> call, @NonNull Response<ApiResponse> response) {
+                        if (response.isSuccessful() && response.body() != null && response.body().getSubsonicResponse() != null) {
+                            Starred2 payload = response.body().getSubsonicResponse().getStarred2();
+                            starred.postValue(payload != null ? payload : new Starred2());
+                        } else {
+                            Log.w(TAG, "getStarred2 unsuccessful response; home starred sections will retry on next load");
+                            starred.postValue(null);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull Call<ApiResponse> call, @NonNull Throwable t) {
+                        Log.w(TAG, "getStarred2 failed; home starred sections will retry on next load", t);
+                        starred.postValue(null);
+                    }
+                });
+
+        return starred;
     }
 
     /**

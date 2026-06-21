@@ -59,6 +59,7 @@ public class HomeViewModel extends AndroidViewModel {
     private final MutableLiveData<List<Child>> starredTracksSample = new MutableLiveData<>(null);
     private final MutableLiveData<List<ArtistID3>> starredArtistsSample = new MutableLiveData<>(null);
     private final MutableLiveData<List<ArtistID3>> bestOfArtists = new MutableLiveData<>(null);
+    private boolean starredHomeSamplesRequested = false;
     private final MutableLiveData<List<Child>> starredTracks = new MutableLiveData<>(null);
     private final MutableLiveData<List<AlbumID3>> starredAlbums = new MutableLiveData<>(null);
     private final MutableLiveData<List<ArtistID3>> starredArtists = new MutableLiveData<>(null);
@@ -151,27 +152,50 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<Child>> getStarredTracksSample(LifecycleOwner owner) {
-        if (starredTracksSample.getValue() == null) {
-            songRepository.getStarredSongs(true, 10).observe(owner, starredTracksSample::postValue);
-        }
-
+        requestStarredHomeSamples(owner);
         return starredTracksSample;
     }
 
     public LiveData<List<ArtistID3>> getStarredArtistsSample(LifecycleOwner owner) {
-        if (starredArtistsSample.getValue() == null) {
-            artistRepository.getStarredArtists(true, 10).observe(owner, starredArtistsSample::postValue);
-        }
-
+        requestStarredHomeSamples(owner);
         return starredArtistsSample;
     }
 
     public LiveData<List<ArtistID3>> getBestOfArtists(LifecycleOwner owner) {
-        if (bestOfArtists.getValue() == null) {
-            artistRepository.getStarredArtists(true, 20).observe(owner, bestOfArtists::postValue);
-        }
-
+        requestStarredHomeSamples(owner);
         return bestOfArtists;
+    }
+
+    /*
+     * Made for you, Best of and Radio stations are all derived from a SINGLE getStarred2 call
+     * (issue #694). Previously each fired its own identical getStarred2 during the cold-start
+     * request burst, so any one losing the race left its section silently empty, and the
+     * activity-scoped cache never retried it -> sections randomly missing, different each launch.
+     */
+    private void requestStarredHomeSamples(LifecycleOwner owner) {
+        if (starredHomeSamplesRequested) return;
+        starredHomeSamplesRequested = true;
+
+        songRepository.getStarred().observe(owner, starred -> {
+            if (starred == null) {
+                starredHomeSamplesRequested = false; // request failed: allow a retry on next home load
+                return;
+            }
+
+            List<Child> songs = starred.getSongs() != null ? new ArrayList<>(starred.getSongs()) : new ArrayList<>();
+            Collections.shuffle(songs);
+            starredTracksSample.postValue(new ArrayList<>(songs.subList(0, Math.min(10, songs.size()))));
+
+            List<ArtistID3> artists = starred.getArtists() != null ? new ArrayList<>(starred.getArtists()) : new ArrayList<>();
+
+            Collections.shuffle(artists);
+            bestOfArtists.setValue(new ArrayList<>());
+            artistRepository.getArtistInfo(new ArrayList<>(artists.subList(0, Math.min(20, artists.size()))), bestOfArtists);
+
+            Collections.shuffle(artists);
+            starredArtistsSample.setValue(new ArrayList<>());
+            artistRepository.getArtistInfo(new ArrayList<>(artists.subList(0, Math.min(10, artists.size()))), starredArtistsSample);
+        });
     }
 
     public LiveData<List<Child>> getStarredTracks(LifecycleOwner owner) {
