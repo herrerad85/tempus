@@ -78,6 +78,12 @@ public class AlbumListPageFragment extends Fragment implements ClickCallback {
     }
 
     private void init(Bundle args) {
+        // The view model is activity-scoped, so clear last navigation's directly-passed list
+        // (and artist); otherwise getAlbumList()'s "albums != null" shortcut serves a stale
+        // artist's albums instead of the category we're opening now. See #567.
+        albumListPageViewModel.albums = null;
+        albumListPageViewModel.artist = null;
+
         if (args.getString(Constants.ALBUM_RECENTLY_PLAYED) != null) {
             albumListPageViewModel.title = Constants.ALBUM_RECENTLY_PLAYED;
             bind.pageTitleLabel.setText(R.string.album_list_page_recently_played);
