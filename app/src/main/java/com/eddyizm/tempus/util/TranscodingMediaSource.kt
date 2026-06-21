@@ -26,10 +26,20 @@ class TranscodingMediaSource(
         private val mediaItem: MediaItem,
         private val dataSourceFactory: DataSource.Factory,
         private val progressiveMediaSourceFactory: ProgressiveMediaSource.Factory
-) : CompositeMediaSource<Void>() {
+) : CompositeMediaSource<Int>() {
 
     private var durationUs: Long = C.TIME_UNSET
-    private var currentSource: MediaSource? = null
+
+    // Each period owns its own child source, keyed by a unique id. A single shared child (the old
+    // design) broke repeat-one: ExoPlayer creates the looped period gaplessly while the seeked one
+    // is still reading, so the new period inherited the seek offset and replayed from there. With
+    // per-period sources a seeked period and a fresh offset-0 loop period can coexist. See #383.
+    private var nextChildId = 0
+
+    // Source prepared in prepareSourceInternal to publish the timeline; claimed by the first
+    // createPeriod so its already-open server stream isn't wasted.
+    private var pendingSource: MediaSource? = null
+    private var pendingChildId = -1
 
     init {
         val extras = mediaItem.mediaMetadata.extras
@@ -43,24 +53,28 @@ class TranscodingMediaSource(
                 durationUs = Util.msToUs(seconds * 1000L)
             }
         }
-
-        currentSource = progressiveMediaSourceFactory.createMediaSource(mediaItem)
     }
 
     override fun getMediaItem() = mediaItem
 
     override fun prepareSourceInternal(mediaTransferListener: TransferListener?) {
         super.prepareSourceInternal(mediaTransferListener)
+        val childId = nextChildId++
         val initialSource = progressiveMediaSourceFactory.createMediaSource(mediaItem)
-        currentSource = initialSource
-        prepareChildSource(null, initialSource)
+        pendingSource = initialSource
+        pendingChildId = childId
+        prepareChildSource(childId, initialSource)
     }
 
     override fun onChildSourceInfoRefreshed(
-            childSourceId: Void?,
+            childSourceId: Int?,
             mediaSource: MediaSource,
             newTimeline: Timeline
     ) {
+        // With a known duration every child publishes the same overriding window, so refreshes from
+        // multiple concurrent children are consistent.
+        // ponytail: without a duration extra concurrent children can briefly flip the window length;
+        // acceptable, this source is only used when the server reports a transcode duration.
         val timeline =
                 if (durationUs != C.TIME_UNSET) {
                     DurationOverridingTimeline(newTimeline, durationUs)
@@ -75,31 +89,40 @@ class TranscodingMediaSource(
             allocator: Allocator,
             startPositionUs: Long
     ): MediaPeriod {
-        val source = currentSource ?: throw IllegalStateException("Source not ready")
+        // Always start a new period from a fresh offset-0 source, independent of any seeked period
+        // still playing (the repeat-one loop case). Reuse the prepared pending source for the first
+        // period, otherwise prepare a fresh one.
+        val source: MediaSource
+        val childId: Int
+        val claimed = pendingSource
+        if (claimed != null) {
+            source = claimed
+            childId = pendingChildId
+            pendingSource = null
+        } else {
+            childId = nextChildId++
+            source = progressiveMediaSourceFactory.createMediaSource(mediaItem)
+            prepareChildSource(childId, source)
+        }
         val childPeriod = source.createPeriod(id, allocator, startPositionUs)
-        return TranscodingMediaPeriod(childPeriod, source, id, allocator)
+        return TranscodingMediaPeriod(childPeriod, source, childId, id, allocator)
     }
 
     override fun releasePeriod(mediaPeriod: MediaPeriod) {
         val transcodingPeriod = mediaPeriod as TranscodingMediaPeriod
         transcodingPeriod.release()
-        
-        if (transcodingPeriod.currentOffsetUs > 0) {
-            releaseChildSource(null)
-            val initialSource = progressiveMediaSourceFactory.createMediaSource(mediaItem)
-            currentSource = initialSource
-            prepareChildSource(null, initialSource)
-        }
+        releaseChildSource(transcodingPeriod.childId)
     }
 
     override fun getMediaPeriodIdForChildMediaPeriodId(
-            childSourceId: Void?,
+            childSourceId: Int?,
             mediaPeriodId: MediaSource.MediaPeriodId
     ) = mediaPeriodId
 
     private inner class TranscodingMediaPeriod(
             private var currentPeriod: MediaPeriod,
             private var source: MediaSource,
+            internal var childId: Int,
             private val id: MediaSource.MediaPeriodId,
             private val allocator: Allocator
     ) : MediaPeriod, MediaPeriod.Callback {
@@ -254,7 +277,7 @@ class TranscodingMediaSource(
             activeWrappers.forEach { it?.childStream = null }
 
             source.releasePeriod(currentPeriod)
-            releaseChildSource(null)
+            releaseChildSource(childId)
 
             val seconds = Util.usToMs(positionUs) / 1000
             val newUri = MusicUtil.getStreamUri(mediaItem.mediaId, seconds.toInt())
@@ -262,9 +285,10 @@ class TranscodingMediaSource(
 
             val newSource = progressiveMediaSourceFactory.createMediaSource(newMediaItem)
 
+            val newChildId = nextChildId++
+            childId = newChildId
             source = newSource
-            currentSource = newSource
-            prepareChildSource(null, newSource)
+            prepareChildSource(newChildId, newSource)
 
             val newPeriod = newSource.createPeriod(id, allocator, 0)
             currentPeriod = newPeriod
