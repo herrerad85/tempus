@@ -128,7 +128,11 @@ public class AlbumBottomSheetDialog extends BottomSheetDialogFragment implements
             isFirstBatch = true;
             Toast.makeText(requireContext(), R.string.bottom_sheet_generating_instant_mix, Toast.LENGTH_SHORT).show();
 
-            albumBottomSheetViewModel.getAlbumInstantMix(activity, album).observe(activity, media -> {
+            // #799: observe on the dialog's view lifecycle, not the Activity. This VM is
+            // Activity-scoped, so an Activity-scoped observer on its shared instantMix LiveData is
+            // never removed and leaks this dismissed dialog + its view tree (cover bitmaps) on every
+            // instant mix (Views grow unbounded) until the app janks/OOMs. View-scoped dies on dismiss.
+            albumBottomSheetViewModel.getAlbumInstantMix(getViewLifecycleOwner(), album).observe(getViewLifecycleOwner(), media -> {
                 if (media == null || media.isEmpty()) return;
                 if (getActivity() == null) return;
 
