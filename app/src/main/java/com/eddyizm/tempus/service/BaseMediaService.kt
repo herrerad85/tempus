@@ -281,6 +281,10 @@ open class BaseMediaService : MediaLibraryService() {
     // "end" is a drop). #398: a server-transcoded song whose stream drops mid-track, which
     // otherwise silently stops the queue or skips through songs on a network blip.
     private var streamReconnectAttempts = 0
+    // The mediaId of the item the current reconnect episode is recovering. Kept across
+    // re-entrant STATE_ENDED kicks so a permanently-dead stream's own failed attempts don't
+    // reset the attempt budget (which would let it reconnect forever). Cleared on recovery.
+    private var streamReconnectItemId: String? = null
     private val streamReconnectMaxAttempts = 6
     private val streamReconnectDelayMs = 3_000L
     // A track ending within this margin of its known duration counts as a real finish, not a drop.
@@ -290,14 +294,21 @@ open class BaseMediaService : MediaLibraryService() {
             val p = mediaLibrarySession.player
             val idx = p.currentMediaItemIndex
             val item = p.currentMediaItem
-            // Stop once playback resumed (READY/BUFFERING), the user paused/stopped, or the
-            // bounded attempt budget is spent (so a permanently-dead stream can't loop).
+            // Recovered (READY/BUFFERING) or the user paused/stopped: the episode is over, so
+            // clear it and let the next drop retry from a fresh budget.
             if (item == null || idx == C.INDEX_UNSET || !p.playWhenReady ||
                 p.playbackState == Player.STATE_READY ||
-                p.playbackState == Player.STATE_BUFFERING ||
-                streamReconnectAttempts >= streamReconnectMaxAttempts
+                p.playbackState == Player.STATE_BUFFERING
             ) {
                 streamReconnectAttempts = 0
+                streamReconnectItemId = null
+                return
+            }
+            // Budget spent on this item: give up WITHOUT clearing the counter, so a re-entrant
+            // STATE_ENDED from this same dead stream re-enters here and bails instead of
+            // restarting the cycle. The episode is cleared on the next STATE_READY. See #398/#780.
+            if (streamReconnectAttempts >= streamReconnectMaxAttempts) {
+                Log.w(TAG, "stream reconnect gave up after $streamReconnectAttempts attempts (#398/#780)")
                 return
             }
             streamReconnectAttempts++
@@ -315,8 +326,15 @@ open class BaseMediaService : MediaLibraryService() {
     }
 
     private fun kickStreamReconnect() {
+        // Only start a fresh budget for a genuinely new item. A re-entrant STATE_ENDED caused by
+        // our own failed reconnect attempt on the SAME item keeps the running budget, so a
+        // permanently-dead stream eventually hits the ceiling and gives up. See #398/#780.
+        val currentId = mediaLibrarySession.player.currentMediaItem?.mediaId
+        if (currentId != streamReconnectItemId) {
+            streamReconnectItemId = currentId
+            streamReconnectAttempts = 0
+        }
         widgetUpdateHandler.removeCallbacks(streamReconnectRunnable)
-        streamReconnectAttempts = 0
         widgetUpdateHandler.post(streamReconnectRunnable)
     }
 
@@ -586,6 +604,13 @@ open class BaseMediaService : MediaLibraryService() {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 Log.d(TAG, "onPlaybackStateChanged state=$playbackState")
                 super.onPlaybackStateChanged(playbackState)
+
+                // A clean READY means playback recovered (or started fresh): end any reconnect
+                // episode so a later drop of this same item retries from a fresh budget (#398/#780).
+                if (playbackState == Player.STATE_READY) {
+                    streamReconnectAttempts = 0
+                    streamReconnectItemId = null
+                }
 
                 // #780/#398: STATE_ENDED on a stream that didn't actually finish = a dropped
                 // no-Content-Length source (radio is infinite; a transcoded song ended far
