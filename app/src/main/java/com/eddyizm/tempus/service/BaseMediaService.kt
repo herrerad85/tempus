@@ -287,8 +287,16 @@ open class BaseMediaService : MediaLibraryService() {
     private var streamReconnectItemId: String? = null
     private val streamReconnectMaxAttempts = 6
     private val streamReconnectDelayMs = 3_000L
-    // A track ending within this margin of its known duration counts as a real finish, not a drop.
+    // A track ending within this margin of its known duration counts as a real finish, not a
+    // drop. A genuine drop ends mid-stream, far from the end; a legitimate finish lands near it.
+    // The server's catalog duration can drift from the real decoded length (rounding, VBR, or a
+    // plain wrong server value), so the margin scales with the track length (between the floor
+    // and the cap) instead of a flat value, to avoid replaying a track that actually just ended.
+    // ponytail: calibration knob. Tune on-device if genuine end-of-track drops are missed (lower
+    // the fraction/floor) or normal ends replay (raise them).
     private val PREMATURE_END_MARGIN_MS = 5_000L
+    private val PREMATURE_END_MARGIN_FRACTION = 0.05
+    private val PREMATURE_END_MARGIN_MAX_MS = 30_000L
     private val streamReconnectRunnable = object : Runnable {
         override fun run() {
             val p = mediaLibrarySession.player
@@ -346,7 +354,10 @@ open class BaseMediaService : MediaLibraryService() {
         if (type != Constants.MEDIA_TYPE_MUSIC && type != Constants.MEDIA_TYPE_PODCAST) return false
         val durationSec = item.mediaMetadata.extras?.getInt("duration", 0) ?: 0
         if (durationSec <= 0) return false
-        return positionMs in 0 until (durationSec * 1000L - PREMATURE_END_MARGIN_MS)
+        val durationMs = durationSec * 1000L
+        val marginMs = (durationMs * PREMATURE_END_MARGIN_FRACTION).toLong()
+            .coerceIn(PREMATURE_END_MARGIN_MS, PREMATURE_END_MARGIN_MAX_MS)
+        return positionMs in 0 until (durationMs - marginMs)
     }
 
     fun initializePlayerListener(player: Player) {
