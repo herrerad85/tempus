@@ -42,7 +42,7 @@ public class PlaylistEditorViewModel extends AndroidViewModel {
     }
 
     public void updatePlaylist(String name, PlaylistRepository.PlaylistActionCallback callback) {
-        playlistRepository.updatePlaylist(toEdit.getId(), name, getPlaylistSongIds(), callback);
+        playlistRepository.updatePlaylist(toEdit.getId(), name, toEdit.isUniversal(), getPlaylistSongIds(), callback);
     }
 
     public void deletePlaylist(PlaylistRepository.PlaylistActionCallback callback) {

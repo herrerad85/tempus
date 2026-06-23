@@ -373,7 +373,11 @@ public class PlaylistRepository {
                 });
     }
 
-    public void updatePlaylist(String playlistId, String name, ArrayList<String> songsId, PlaylistActionCallback callback) {
+    public void updatePlaylist(String playlistId, String name, Boolean isPublic, ArrayList<String> songsId, PlaylistActionCallback callback) {
+        // The editor saves the playlist's exact intended song list, so this must REPLACE the
+        // contents. Subsonic updatePlaylist's songIdToAdd only appends (it never replaces), which
+        // duplicated every track on each edit (#800). createPlaylist with an existing playlistId
+        // replaces the song list while also applying the (optional) new name.
         App.getSubsonicClientInstance(false)
                 .getPlaylistClient()
                 .updatePlaylist(playlistId, name, true, songsId, null)
@@ -382,6 +386,7 @@ public class PlaylistRepository {
                     public void onResponse(@NonNull Call<ApiResponse> call, @NonNull Response<ApiResponse> response) {
                         if (response.isSuccessful()) {
                             updateLocalPlaylistName(playlistId, name);
+                            reassertPlaylistVisibility(playlistId, isPublic);
                             notifyPlaylistChanged();
                             if (callback != null) callback.onSuccess();
                         } else {
@@ -392,6 +397,30 @@ public class PlaylistRepository {
                     @Override
                     public void onFailure(@NonNull Call<ApiResponse> call, @NonNull Throwable t) {
                         if (callback != null) callback.onFailure();
+                    }
+                });
+    }
+
+    // createPlaylist (used above to replace the song list) has no `public` parameter, so on a
+    // server that defaults a (re)created playlist to private it would silently flip a public
+    // playlist private on every edit. Re-assert the playlist's existing visibility via
+    // updatePlaylist, which leaves the song list untouched (null add/remove). Best-effort:
+    // the edit itself has already succeeded, so a failure here only logs. See #800.
+    private void reassertPlaylistVisibility(String playlistId, Boolean isPublic) {
+        if (isPublic == null) return; // visibility unknown; leave the server's current value as-is
+        App.getSubsonicClientInstance(false)
+                .getPlaylistClient()
+                .updatePlaylist(playlistId, null, isPublic, null, null)
+                .enqueue(new Callback<ApiResponse>() {
+                    @Override
+                    public void onResponse(@NonNull Call<ApiResponse> call, @NonNull Response<ApiResponse> response) {
+                        if (!response.isSuccessful())
+                            android.util.Log.e("PlaylistRepository", "reassertPlaylistVisibility: server rejected for " + playlistId);
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull Call<ApiResponse> call, @NonNull Throwable t) {
+                        android.util.Log.e("PlaylistRepository", "reassertPlaylistVisibility failed for " + playlistId, t);
                     }
                 });
     }
