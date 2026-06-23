@@ -219,21 +219,32 @@ public class MediaManager {
                         backgroundExecutor.execute(() -> {
                             final List<MediaItem> items = MappingUtil.mapMediaItems(media);
 
+                            // mapMediaItems skips songs it can't resolve (#705), so it may return
+                            // fewer items than `media` - or none at all. setMediaItems(items, startIndex, ..)
+                            // throws IllegalSeekPositionException when startIndex points past the (now
+                            // shorter) mapped list, so clamp the index and bail when nothing is playable.
+                            // Mirrors the guard in BaseMediaService.restorePlayerFromQueue. See #600/#705.
+                            if (items.isEmpty()) {
+                                Log.w(TAG, "startQueue: no playable items after mapping " + media.size() + " songs; aborting");
+                                return;
+                            }
+                            final int safeStartIndex = Math.max(0, Math.min(startIndex, items.size() - 1));
+
                             new Handler(Looper.getMainLooper()).post(() -> {
                                 justStarted.set(true);
-                                browser.setMediaItems(items, startIndex, 0);
+                                browser.setMediaItems(items, safeStartIndex, 0);
                                 browser.prepare();
 
                                 Player.Listener timelineListener = new Player.Listener() {
                                     @Override
                                     public void onTimelineChanged(Timeline timeline, int reason) {
                                         int itemCount = browser.getMediaItemCount();
-                                        if (itemCount > 0 && startIndex >= 0 && startIndex < itemCount) {
-                                            browser.seekTo(startIndex, 0);
+                                        if (itemCount > 0 && safeStartIndex < itemCount) {
+                                            browser.seekTo(safeStartIndex, 0);
                                             browser.play();
                                             browser.removeListener(this);
                                         } else {
-                                            Log.d(TAG, "Cannot start playback: itemCount=" + itemCount + ", startIndex=" + startIndex);
+                                            Log.d(TAG, "Cannot start playback: itemCount=" + itemCount + ", startIndex=" + safeStartIndex);
                                         }
                                     }
                                 };
