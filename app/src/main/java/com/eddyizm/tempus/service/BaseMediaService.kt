@@ -274,6 +274,63 @@ open class BaseMediaService : MediaLibraryService() {
     private var lastPlayerErrorRecoveryMs = 0L
     private val playerErrorRecoveryThrottleMs = 5_000L
 
+    // Reconnect a stream whose no-Content-Length source dropped mid-playback. A dropped
+    // socket on such a stream reads as EOF, which ExoPlayer treats as the track FINISHING
+    // (STATE_ENDED, or an auto-advance to the next item) rather than an error -- so the
+    // #682 onPlayerError recovery never fires. #780: live internet radio (infinite, every
+    // "end" is a drop). #398: a server-transcoded song whose stream drops mid-track, which
+    // otherwise silently stops the queue or skips through songs on a network blip.
+    private var streamReconnectAttempts = 0
+    private val streamReconnectMaxAttempts = 6
+    private val streamReconnectDelayMs = 3_000L
+    // A track ending within this margin of its known duration counts as a real finish, not a drop.
+    private val PREMATURE_END_MARGIN_MS = 5_000L
+    private val streamReconnectRunnable = object : Runnable {
+        override fun run() {
+            val p = mediaLibrarySession.player
+            val idx = p.currentMediaItemIndex
+            val item = p.currentMediaItem
+            // Stop once playback resumed (READY/BUFFERING), the user paused/stopped, or the
+            // bounded attempt budget is spent (so a permanently-dead stream can't loop).
+            if (item == null || idx == C.INDEX_UNSET || !p.playWhenReady ||
+                p.playbackState == Player.STATE_READY ||
+                p.playbackState == Player.STATE_BUFFERING ||
+                streamReconnectAttempts >= streamReconnectMaxAttempts
+            ) {
+                streamReconnectAttempts = 0
+                return
+            }
+            streamReconnectAttempts++
+            Log.w(TAG, "stream dropped, reconnect attempt $streamReconnectAttempts (#398/#780)")
+            // Rebuild the current item's source, not just prepare(): after a premature EOF the
+            // position sits at the exhausted in-memory source's end, so prepare() alone re-uses
+            // that dead source without re-opening the connection. replaceMediaItem builds a
+            // fresh MediaSource and keeps the rest of the queue intact; seekTo(idx, 0) starts
+            // it from the top. playWhenReady stays true, so it auto-resumes once reachable.
+            p.replaceMediaItem(idx, item)
+            p.seekTo(idx, 0)
+            p.prepare()
+            widgetUpdateHandler.postDelayed(this, streamReconnectDelayMs)
+        }
+    }
+
+    private fun kickStreamReconnect() {
+        widgetUpdateHandler.removeCallbacks(streamReconnectRunnable)
+        streamReconnectAttempts = 0
+        widgetUpdateHandler.post(streamReconnectRunnable)
+    }
+
+    // A music/podcast item that ended (or was auto-advanced away from) well before its known
+    // duration didn't finish -- its stream dropped (premature EOF). Radio has no duration, so
+    // it's handled separately (every end is a drop). Unknown duration -> can't tell, so false.
+    private fun isPrematureTrackEnd(item: MediaItem?, positionMs: Long): Boolean {
+        val type = item?.mediaMetadata?.extras?.getString("type")
+        if (type != Constants.MEDIA_TYPE_MUSIC && type != Constants.MEDIA_TYPE_PODCAST) return false
+        val durationSec = item.mediaMetadata.extras?.getInt("duration", 0) ?: 0
+        if (durationSec <= 0) return false
+        return positionMs in 0 until (durationSec * 1000L - PREMATURE_END_MARGIN_MS)
+    }
+
     fun initializePlayerListener(player: Player) {
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
@@ -527,8 +584,23 @@ open class BaseMediaService : MediaLibraryService() {
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
-                Log.d(TAG, "onPlaybackStateChanged")
+                Log.d(TAG, "onPlaybackStateChanged state=$playbackState")
                 super.onPlaybackStateChanged(playbackState)
+
+                // #780/#398: STATE_ENDED on a stream that didn't actually finish = a dropped
+                // no-Content-Length source (radio is infinite; a transcoded song ended far
+                // before its known duration). It's EOF, not an error, so #682 never fires.
+                if (playbackState == Player.STATE_ENDED && player.playWhenReady) {
+                    val type = player.currentMediaItem?.mediaMetadata?.extras?.getString("type")
+                    if (type == Constants.MEDIA_TYPE_RADIO ||
+                        isPrematureTrackEnd(player.currentMediaItem, player.currentPosition)
+                    ) {
+                        Log.w(TAG, "premature end (type=$type pos=${player.currentPosition}), reconnecting (#398/#780)")
+                        kickStreamReconnect()
+                        return  // didn't finish -> don't scrobble it as played
+                    }
+                }
+
                 if (!player.hasNextMediaItem() &&
                     playbackState == Player.STATE_ENDED &&
                     player.mediaMetadata.extras?.getString("type") == Constants.MEDIA_TYPE_MUSIC
@@ -562,6 +634,19 @@ open class BaseMediaService : MediaLibraryService() {
                 }
 
                 if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
+                    // #398: if we auto-advanced away from a track that hadn't reached its known
+                    // duration, its stream dropped (premature EOF) rather than finishing. Go back
+                    // and reconnect it, so a network blip doesn't silently skip through the queue.
+                    if (isPrematureTrackEnd(oldPosition.mediaItem, oldPosition.positionMs)) {
+                        Log.w(TAG, "premature auto-transition from idx ${oldPosition.mediaItemIndex} pos=${oldPosition.positionMs}, recovering (#398)")
+                        val backIdx = oldPosition.mediaItemIndex
+                        if (backIdx != C.INDEX_UNSET) {
+                            player.seekTo(backIdx, 0)
+                            kickStreamReconnect()
+                        }
+                        return  // dropped, not finished -> don't scrobble it or accept the skip
+                    }
+
                     if (oldPosition.mediaItem?.mediaMetadata?.extras?.getString("type") == Constants.MEDIA_TYPE_MUSIC) {
                         MediaManager.scrobble(oldPosition.mediaItem, true)
                         MediaManager.saveChronology(oldPosition.mediaItem)
@@ -700,6 +785,7 @@ open class BaseMediaService : MediaLibraryService() {
         equalizerManager.release(exoplayer.audioSessionId)
         ReplayGainUtil.release()
         stopWidgetUpdates()
+        widgetUpdateHandler.removeCallbacks(streamReconnectRunnable)
         stopRadioHeaderChecks()
         SleepTimerManager.getInstance().stopEndOfTrackPoller()
         SleepTimerManager.getInstance().setServiceActionListener(null)
