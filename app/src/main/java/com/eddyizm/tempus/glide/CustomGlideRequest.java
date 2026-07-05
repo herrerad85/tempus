@@ -34,6 +34,10 @@ public class CustomGlideRequest {
 
     public static final DiskCacheStrategy DEFAULT_DISK_CACHE_STRATEGY = DiskCacheStrategy.ALL;
 
+    // ponytail: ceiling for the "High" image-size option (was -1 = original/unbounded). 1500px covers a
+    // full-screen now-playing cover on the largest phones while keeping decoded bitmaps bounded (#208).
+    public static final int HIGH_RES_ART_SIZE = 1500;
+
     public enum ResourceType {
         Unknown,
         Album,
@@ -102,8 +106,11 @@ public class CustomGlideRequest {
             uri.append("&v=").append(params.get("v"));
         if (params.containsKey("c") && params.get("c") != null)
             uri.append("&c=").append(params.get("c"));
-        if (size != -1)
-            uri.append("&size=").append(size);
+        // ponytail: never request the unbounded original. size <= 0 (the "High" preference = -1) made the
+        // server return full-res art (e.g. 3000x3000 ~= 18MB RGB565 decoded), exhausting the heap on large
+        // libraries -> OOM (#208). Cap "High" to a screen-sized ceiling; the server resizes via &size.
+        int boundedSize = size > 0 ? size : HIGH_RES_ART_SIZE;
+        uri.append("&size=").append(boundedSize);
 
         uri.append("&id=").append(item);
 
