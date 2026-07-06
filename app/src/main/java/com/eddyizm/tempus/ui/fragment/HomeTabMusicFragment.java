@@ -185,6 +185,9 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        // Detach the discover-song adapter so onDetachedFromRecyclerView fires and cancels its long
+        // cover animation; otherwise the global AnimationHandler leaks the detached view (#688-family).
+        if (bind != null) bind.discoverSongRecyclerView.setAdapter(null);
         // Release adapters so they stop retaining their detached RecyclerViews and bound data
         // (LeakCanary: bestOfArtistAdapter alone was pinning ~1.2 MB after onDestroyView).
         discoverSongAdapter = null;
