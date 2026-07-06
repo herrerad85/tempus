@@ -77,6 +77,8 @@ public class HomeTabRadioFragment extends Fragment implements ClickCallback, Rad
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        // Release the adapter so it stops retaining the detached RecyclerView (LeakCanary #688-family).
+        internetRadioStationAdapter = null;
         bind = null;
     }
 

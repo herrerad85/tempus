@@ -177,6 +177,9 @@ public class PlaylistPageFragment extends Fragment implements ClickCallback {
         super.onDestroyView();
         if (playlistMissingDialog != null && playlistMissingDialog.isShowing()) playlistMissingDialog.dismiss();
         playlistMissingDialog = null;
+
+        // Release adapter(s) so this retained fragment stops pinning its detached view tree (#688-family).
+        songHorizontalAdapter = null;
         bind = null;
     }
 

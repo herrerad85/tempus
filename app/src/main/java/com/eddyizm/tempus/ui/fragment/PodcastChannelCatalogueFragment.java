@@ -65,6 +65,9 @@ public class PodcastChannelCatalogueFragment extends Fragment implements ClickCa
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+
+        // Release adapter(s) so this retained fragment stops pinning its detached view tree (#688-family).
+        podcastChannelCatalogueAdapter = null;
         bind = null;
     }
 

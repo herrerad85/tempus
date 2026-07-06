@@ -100,6 +100,9 @@ public class DownloadFragment extends Fragment implements ClickCallback {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        // Release adapter and toolbar so this retained fragment stops pinning the detached view tree (#688-family).
+        downloadHorizontalAdapter = null;
+        materialToolbar = null;
         bind = null;
     }
 
