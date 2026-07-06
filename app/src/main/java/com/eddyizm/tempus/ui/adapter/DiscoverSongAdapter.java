@@ -80,6 +80,20 @@ public class DiscoverSongAdapter extends RecyclerView.Adapter<DiscoverSongAdapte
     }
 
     @Override
+    public void onDetachedFromRecyclerView(@NonNull RecyclerView recyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView);
+        // onViewDetachedFromWindow does NOT fire when the host fragment's view is torn down, so cancel
+        // any still-running cover animations here too. Otherwise the global AnimationHandler keeps the
+        // detached item views alive and, via View.mContext, the whole destroyed view tree (#688-family).
+        for (int i = 0; i < recyclerView.getChildCount(); i++) {
+            RecyclerView.ViewHolder holder = recyclerView.getChildViewHolder(recyclerView.getChildAt(i));
+            if (holder instanceof ViewHolder) {
+                ((ViewHolder) holder).item.discoverSongCoverImageView.animate().cancel();
+            }
+        }
+    }
+
+    @Override
     public int getItemCount() {
         return songs.size();
     }
