@@ -35,6 +35,7 @@ public class HomeFragment extends Fragment {
     private MaterialToolbar materialToolbar;
     private AppBarLayout appBarLayout;
     private TabLayout tabLayout;
+    private TabLayoutMediator tabLayoutMediator;
 
     @Nullable
     @Override
@@ -64,6 +65,19 @@ public class HomeFragment extends Fragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        // Clear retained view refs so the destroyed view tree is GC'd while this fragment survives as
+        // a pager page (LeakCanary flagged appBarLayout/tabLayout/homeViewPager pinning detached views).
+        // Detach the mediator: its PagerAdapterObserver is registered on the pager adapter, which the
+        // fragment's (back-stacked) lifecycle keeps alive, so without this it keeps tabLayout -> the whole
+        // detached view tree reachable even after the view fields below are nulled (LeakCanary #688-family).
+        if (tabLayoutMediator != null) {
+            tabLayoutMediator.detach();
+            tabLayoutMediator = null;
+        }
+        if (bind != null) bind.homeViewPager.setAdapter(null);
+        appBarLayout = null;
+        tabLayout = null;
+        materialToolbar = null;
         bind = null;
     }
 
@@ -98,12 +112,13 @@ public class HomeFragment extends Fragment {
         bind.homeViewPager.setOffscreenPageLimit(3);
         bind.homeViewPager.setUserInputEnabled(false);
 
-        new TabLayoutMediator(tabLayout, bind.homeViewPager,
+        tabLayoutMediator = new TabLayoutMediator(tabLayout, bind.homeViewPager,
                 (tab, position) -> {
                     tab.setText(pager.getPageTitle(position));
                     // tab.setIcon(pager.getPageIcon(position));
                 }
-        ).attach();
+        );
+        tabLayoutMediator.attach();
 
         tabLayout.setVisibility(Preferences.isPodcastSectionVisible() || Preferences.isRadioSectionVisible() ? View.VISIBLE : View.GONE);
 

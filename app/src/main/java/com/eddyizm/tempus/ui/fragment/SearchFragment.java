@@ -98,6 +98,11 @@ public class SearchFragment extends Fragment implements ClickCallback {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        // Release adapters so this retained fragment stops pinning the detached view tree (#688-family).
+        artistAdapter = null;
+        albumAdapter = null;
+        songHorizontalAdapter = null;
+        playlistHorizontalAdapter = null;
         bind = null;
     }
 

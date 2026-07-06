@@ -129,6 +129,14 @@ public class LibraryFragment extends Fragment implements ClickCallback {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        // Release adapters and the toolbar so this retained fragment stops pinning the detached view
+        // tree and bound data (LeakCanary #688-family: albumAdapter alone was ~2.3 MB after onDestroyView).
+        musicFolderAdapter = null;
+        albumAdapter = null;
+        artistAdapter = null;
+        genreAdapter = null;
+        playlistHorizontalAdapter = null;
+        materialToolbar = null;
         bind = null;
     }
 

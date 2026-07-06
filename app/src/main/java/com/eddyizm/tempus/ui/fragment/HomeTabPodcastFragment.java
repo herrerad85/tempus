@@ -87,6 +87,9 @@ public class HomeTabPodcastFragment extends Fragment implements ClickCallback, P
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        // Release adapters so they stop retaining their detached RecyclerViews (LeakCanary #688-family).
+        podcastEpisodeAdapter = null;
+        podcastChannelHorizontalAdapter = null;
         bind = null;
     }
 

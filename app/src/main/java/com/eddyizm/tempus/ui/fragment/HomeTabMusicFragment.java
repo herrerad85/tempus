@@ -185,6 +185,23 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        // Release adapters so they stop retaining their detached RecyclerViews and bound data
+        // (LeakCanary: bestOfArtistAdapter alone was pinning ~1.2 MB after onDestroyView).
+        discoverSongAdapter = null;
+        similarMusicAdapter = null;
+        radioArtistAdapter = null;
+        bestOfArtistAdapter = null;
+        starredSongAdapter = null;
+        topSongAdapter = null;
+        starredAlbumAdapter = null;
+        starredArtistAdapter = null;
+        recentlyAddedAlbumAdapter = null;
+        recentlyPlayedAlbumAdapter = null;
+        mostPlayedAlbumAdapter = null;
+        newReleasesAlbumAdapter = null;
+        yearAdapter = null;
+        playlistHorizontalAdapter = null;
+        shareHorizontalAdapter = null;
         bind = null;
     }
 

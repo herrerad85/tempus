@@ -86,6 +86,9 @@ public class PlaylistCatalogueFragment extends Fragment implements ClickCallback
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+
+        // Release adapter(s) so this retained fragment stops pinning its detached view tree (#688-family).
+        playlistHorizontalAdapter = null;
         bind = null;
         MediaBrowser.releaseFuture(mediaBrowserListenableFuture);
     }
