@@ -254,6 +254,7 @@
     <string name="menu_play_shuffle_button">Play shuffle</string>
     <string name="menu_add_to_queue_button">Add to queue</string>
     <string name="menu_edit_playlist_button">Edit playlist</string>
+    <string name="menu_sort_button">Sort</string>
     <string name="menu_download_all_button">Download all</string>
     <string name="menu_rate_album">Rate album</string>
     <string name="menu_download_label">Download</string>
@@ -284,6 +285,14 @@
     <string name="menu_sort_most_played">Most played</string>
     <string name="menu_sort_most_recently_starred">Most recently starred</string>
     <string name="menu_sort_least_recently_starred">Least recently starred</string>
+    <string name="menu_sort_title_asc">Title (A-Z)</string>
+    <string name="menu_sort_title_desc">Title (Z-A)</string>
+    <string name="menu_sort_artist_asc">Artist (A-Z)</string>
+    <string name="menu_sort_artist_desc">Artist (Z-A)</string>
+    <string name="menu_sort_album_asc">Album (A-Z)</string>
+    <string name="menu_sort_album_desc">Album (Z-A)</string>
+    <string name="menu_sort_oldest_added">Oldest first</string>
+    <string name="menu_sort_original_order">Original order</string>
     <string name="menu_pin_button">Add to faves</string>
     <string name="menu_unpin_button">Remove from faves</string>
     <string name="playlist_sort_pinned">Faves</string>

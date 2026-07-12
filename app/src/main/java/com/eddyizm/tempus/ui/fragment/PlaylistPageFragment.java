@@ -13,6 +13,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.PopupMenu;
 import android.widget.SearchView;
 import android.widget.Toast;
 import android.widget.ImageView;
@@ -228,6 +229,33 @@ public class PlaylistPageFragment extends Fragment implements ClickCallback {
         }
 
         return false;
+    }
+
+    // Opens the sort chooser as an anchored popup, matching how the album/artist/song
+    // list screens present sorting (see SongListPageFragment.showPopupMenu).
+    private void showSortPopup(View anchor) {
+        PopupMenu popup = new PopupMenu(requireContext(), anchor);
+        popup.getMenuInflater().inflate(R.menu.sort_playlist_song_popup_menu, popup.getMenu());
+        popup.setOnMenuItemClickListener(menuItem -> {
+            String order = orderForSortItem(menuItem.getItemId());
+            Preferences.setPlaylistSongSortOrder(order);
+            playlistPageViewModel.sortSongs(order);
+            return true;
+        });
+        popup.show();
+    }
+
+    // Maps a popup item to a Constants.PLAYLIST_SONG_ORDER_BY_* value the ViewModel understands.
+    private String orderForSortItem(int id) {
+        if (id == R.id.menu_playlist_song_sort_title_asc) return Constants.PLAYLIST_SONG_ORDER_BY_TITLE_ASC;
+        if (id == R.id.menu_playlist_song_sort_title_desc) return Constants.PLAYLIST_SONG_ORDER_BY_TITLE_DESC;
+        if (id == R.id.menu_playlist_song_sort_artist_asc) return Constants.PLAYLIST_SONG_ORDER_BY_ARTIST_ASC;
+        if (id == R.id.menu_playlist_song_sort_artist_desc) return Constants.PLAYLIST_SONG_ORDER_BY_ARTIST_DESC;
+        if (id == R.id.menu_playlist_song_sort_album_asc) return Constants.PLAYLIST_SONG_ORDER_BY_ALBUM_ASC;
+        if (id == R.id.menu_playlist_song_sort_album_desc) return Constants.PLAYLIST_SONG_ORDER_BY_ALBUM_DESC;
+        if (id == R.id.menu_playlist_song_sort_recently_added) return Constants.PLAYLIST_SONG_ORDER_BY_RECENTLY_ADDED;
+        if (id == R.id.menu_playlist_song_sort_oldest_added) return Constants.PLAYLIST_SONG_ORDER_BY_OLDEST_ADDED;
+        return Constants.PLAYLIST_SONG_ORDER_BY_ORIGINAL;
     }
 
     private void init(Playlist playlist) {
@@ -452,6 +480,7 @@ public class PlaylistPageFragment extends Fragment implements ClickCallback {
 
         songHorizontalAdapter = new SongHorizontalAdapter(getViewLifecycleOwner(), this, true, false, null);
         bind.songRecyclerView.setAdapter(songHorizontalAdapter);
+        bind.playlistPageSortButton.setOnClickListener(this::showSortPopup);
         setMediaBrowserListenableFuture();
         reapplyPlayback();
 

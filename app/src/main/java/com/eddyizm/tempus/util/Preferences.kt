@@ -107,6 +107,8 @@ object Preferences {
     private const val ALBUM_DETAIL = "album_detail"
     private const val ALBUM_SORT_ORDER = "album_sort_order"
     private const val DEFAULT_ALBUM_SORT_ORDER = Constants.ALBUM_ORDER_BY_NAME
+    private const val PLAYLIST_SONG_SORT_ORDER = "playlist_song_sort_order"
+    private const val DEFAULT_PLAYLIST_SONG_SORT_ORDER = Constants.PLAYLIST_SONG_ORDER_BY_ORIGINAL
     private const val ARTIST_SORT_BY_ALBUM_COUNT= "artist_sort_by_album_count"
     private const val SORT_SEARCH_CHRONOLOGICALLY= "sort_search_chronologically"
     private const val ARTIST_DISPLAY_BIOGRAPHY= "artist_display_biography"
@@ -949,6 +951,16 @@ object Preferences {
     @JvmStatic
     fun setAlbumSortOrder(sortOrder: String) {
         App.getInstance().preferences.edit().putString(ALBUM_SORT_ORDER, sortOrder).apply()
+    }
+
+    @JvmStatic
+    fun getPlaylistSongSortOrder(): String {
+        return App.getInstance().preferences.getString(PLAYLIST_SONG_SORT_ORDER, DEFAULT_PLAYLIST_SONG_SORT_ORDER) ?: DEFAULT_PLAYLIST_SONG_SORT_ORDER
+    }
+
+    @JvmStatic
+    fun setPlaylistSongSortOrder(sortOrder: String) {
+        App.getInstance().preferences.edit().putString(PLAYLIST_SONG_SORT_ORDER, sortOrder).apply()
     }
 
     @JvmStatic
