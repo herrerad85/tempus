@@ -60,7 +60,7 @@ public class StarredSyncDialog extends DialogFragment {
         if (dialog != null) {
             Button positiveButton = dialog.getButton(Dialog.BUTTON_POSITIVE);
             positiveButton.setOnClickListener(v -> {
-                starredSyncViewModel.getStarredTracks(requireActivity()).observe(requireActivity(), songs -> {
+                starredSyncViewModel.getStarredTracks(this).observe(this, songs -> {
                     if (songs != null && Preferences.getDownloadDirectoryUri() == null) {
                         DownloadUtil.getDownloadTracker(context).download(
                                 MappingUtil.mapDownloads(songs),

@@ -147,7 +147,7 @@ public class PlaylistEditorDialog extends DialogFragment {
         }
 
         bind.playlistShareButton.setOnClickListener(view -> {
-            playlistEditorViewModel.sharePlaylist().observe(requireActivity(), sharedPlaylist -> {
+            playlistEditorViewModel.sharePlaylist().observe(this, sharedPlaylist -> {
                 ClipboardManager clipboardManager = (ClipboardManager) requireActivity().getSystemService(Context.CLIPBOARD_SERVICE);
                 ClipData clipData = ClipData.newPlainText(getString(R.string.app_name), sharedPlaylist.getUrl());
                 clipboardManager.setPrimaryClip(clipData);
