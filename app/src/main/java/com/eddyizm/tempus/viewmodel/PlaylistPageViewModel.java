@@ -14,8 +14,12 @@ import com.eddyizm.tempus.model.PinnedPlaylist;
 import com.eddyizm.tempus.repository.PlaylistRepository;
 import com.eddyizm.tempus.subsonic.models.Child;
 import com.eddyizm.tempus.subsonic.models.Playlist;
+import com.eddyizm.tempus.util.Constants;
+import com.eddyizm.tempus.util.Preferences;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 
 @UnstableApi
@@ -33,10 +37,25 @@ public class PlaylistPageViewModel extends AndroidViewModel {
     private final MutableLiveData<List<Child>> songLiveList = new MutableLiveData<>();
     private final MutableLiveData<Boolean> playlistMissingEvent = new MutableLiveData<>();
 
+    // The active client-side sort order (a Constants.PLAYLIST_SONG_ORDER_BY_* value).
+    // Loaded from Preferences below; defaults to ORIGINAL (server order), so a user who
+    // never picks a sort sees exactly the pre-feature behavior.
+    private String currentSortOrder = Constants.PLAYLIST_SONG_ORDER_BY_ORIGINAL;
+
+    // The order the server holds, which a sort reorders for display only. Every index the
+    // server takes is a position in this list, never in the list on screen.
+    private List<Child> serverOrder;
+
+    // The song removeSong last sent and the position it sent it at, so an undo puts the song
+    // back where it was on the server and not at the row it occupied on screen.
+    private String removedSongId;
+    private int removedServerIndex = -1;
+
     public PlaylistPageViewModel(@NonNull Application application) {
         super(application);
 
         playlistRepository = new PlaylistRepository();
+        currentSortOrder = Preferences.getPlaylistSongSortOrder();
         playlistUpdateObserver = needsRefresh -> {
             if (needsRefresh != null && needsRefresh && playlist != null) {
                 refreshSongs();
@@ -88,7 +107,7 @@ public class PlaylistPageViewModel extends AndroidViewModel {
                 }
                 if (movedPast && songLiveList.getValue() != null) return;
                 publishedSequence = sequence;
-                songLiveList.setValue(songs);
+                publishSongs(songs);
             }
         });
     }
@@ -101,35 +120,48 @@ public class PlaylistPageViewModel extends AndroidViewModel {
      * while a read has replaced the list drops the row again when that read is the list it
      * started from, and asks the server otherwise. This view model runs one write at a time,
      * since a second request could reach the server first.
+     * <p>
+     * index is the row's position on screen. A sort reorders the list for display and leaves the
+     * server's order alone, so the position sent is looked up in that order by song id.
      */
     public void removeSong(String playlistId, int index, PlaylistRepository.AddToPlaylistCallback callback) {
         List<Child> songs = songLiveList.getValue();
-        if (writingPlaylistId != null || playlist == null || !playlist.getId().equals(playlistId) || songs == null || index < 0 || index >= songs.size()) {
+        if (writingPlaylistId != null || playlist == null || !playlist.getId().equals(playlistId) || songs == null || serverOrder == null || index < 0 || index >= songs.size()) {
+            callback.onFailure();
+            return;
+        }
+
+        boolean sorted = comparatorFor(currentSortOrder) != null;
+        int serverIndex = sorted ? serverIndexOf(songs.get(index)) : index;
+        if (serverIndex < 0 || serverIndex >= serverOrder.size()) {
             callback.onFailure();
             return;
         }
 
         writingPlaylistId = playlistId;
         publishedSequence = ++fetchSequence;
-        List<Child> shorter = new ArrayList<>(songs);
-        Child removed = shorter.remove(index);
-        songLiveList.setValue(shorter);
+        List<Child> withoutSong = new ArrayList<>(serverOrder);
+        Child removed = withoutSong.remove(serverIndex);
+        removedSongId = removed.getId();
+        removedServerIndex = serverIndex;
+        List<Child> shorter = publishSongs(withoutSong);
 
-        playlistRepository.removeSongFromPlaylist(playlistId, index, new PlaylistRepository.AddToPlaylistCallback() {
+        playlistRepository.removeSongFromPlaylist(playlistId, serverIndex, new PlaylistRepository.AddToPlaylistCallback() {
             @Override
             public void onSuccess() {
                 // A read issued meanwhile can have replaced the list with one from before the
                 // delete, which is dropped again here; any other list gets a fresh read, with
                 // the flag up until it lands.
                 List<Child> current = songLiveList.getValue();
+                int at = sameIds(current, songs) ? (sorted ? serverIndexOf(removed) : index) : -1;
                 if (current == shorter || playlist == null || !playlist.getId().equals(playlistId)) {
                     writingPlaylistId = null;
-                } else if (sameIds(current, songs)) {
+                } else if (at >= 0) {
                     writingPlaylistId = null;
                     publishedSequence = ++fetchSequence;
-                    List<Child> again = new ArrayList<>(current);
-                    again.remove(index);
-                    songLiveList.setValue(again);
+                    List<Child> again = new ArrayList<>(serverOrder);
+                    again.remove(at);
+                    publishSongs(again);
                 } else {
                     reconcileSongs(playlistId, true);
                 }
@@ -140,9 +172,9 @@ public class PlaylistPageViewModel extends AndroidViewModel {
             public void onFailure() {
                 List<Child> current = songLiveList.getValue();
                 if (current == shorter) {
-                    current = new ArrayList<>(shorter);
-                    current.add(index, removed);
-                    songLiveList.setValue(current);
+                    List<Child> back = new ArrayList<>(serverOrder);
+                    back.add(Math.min(serverIndex, back.size()), removed);
+                    publishSongs(back);
                 }
                 reconcileSongs(playlistId, true);
                 callback.onFailure();
@@ -157,16 +189,21 @@ public class PlaylistPageViewModel extends AndroidViewModel {
     }
 
     /**
-     * Puts song back at index by replacing the playlist's contents with the server's current
-     * list plus the song, since the updatePlaylist call can only add a song at the end. The list
-     * is fetched fresh, never from the cache, so nothing added since is written over. Refused
+     * Puts song back by replacing the playlist's contents with the server's current list plus
+     * the song, since the updatePlaylist call can only add a song at the end. The list is
+     * fetched fresh, never from the cache, so nothing added since is written over. Refused
      * while another write is out, for the reason removeSong gives.
+     * <p>
+     * It goes back where removeSong took it from, since index is a row on screen and a sort
+     * makes that a different position from the server's. index is used for any other song.
      */
     public void restoreSong(String playlistId, Child song, int index, PlaylistRepository.PlaylistActionCallback callback) {
         if (writingPlaylistId != null) {
             callback.onFailure();
             return;
         }
+
+        int at = song != null && song.getId() != null && song.getId().equals(removedSongId) ? removedServerIndex : index;
 
         writingPlaylistId = playlistId;
         invalidateFetches(playlistId);
@@ -181,7 +218,7 @@ public class PlaylistPageViewModel extends AndroidViewModel {
                     return;
                 }
                 List<Child> restored = new ArrayList<>(songs);
-                restored.add(Math.min(index, restored.size()), song);
+                restored.add(Math.min(at, restored.size()), song);
                 ArrayList<String> ids = new ArrayList<>(restored.size());
                 for (Child each : restored) ids.add(each.getId());
                 playlistRepository.createPlaylist(playlistId, null, ids, new PlaylistRepository.PlaylistActionCallback() {
@@ -192,7 +229,7 @@ public class PlaylistPageViewModel extends AndroidViewModel {
                         // its list was, as long as it still shows this playlist.
                         if (invalidateFetches(playlistId)) {
                             publishedSequence = fetchSequence;
-                            songLiveList.setValue(restored);
+                            publishSongs(restored);
                         }
                         callback.onSuccess();
                     }
@@ -241,7 +278,7 @@ public class PlaylistPageViewModel extends AndroidViewModel {
                 writingPlaylistId = null;
                 if (songs != null && publishedSequence <= sequence && invalidateFetches(playlistId)) {
                     publishedSequence = fetchSequence;
-                    songLiveList.setValue(songs);
+                    publishSongs(songs);
                 }
             }
         });
@@ -269,6 +306,66 @@ public class PlaylistPageViewModel extends AndroidViewModel {
         }
     }
 
+    // Reorders the displayed playlist songs client-side only; the server order is never
+    // touched. The song list and the play/queue buttons both read songLiveList, so
+    // re-publishing here reorders playback too. `order` is a Constants.PLAYLIST_SONG_ORDER_BY_*
+    // value; ORIGINAL re-publishes the server's own order. The choice persists across
+    // add/remove refreshes and reaches the first load through publishSongs.
+    public void sortSongs(String order) {
+        currentSortOrder = order;
+        if (serverOrder != null) publishSongs(serverOrder);
+    }
+
+    // null = original (server) order. Date sorts use the library "created" date;
+    // Subsonic exposes no per-entry added-to-playlist timestamp.
+    private Comparator<Child> comparatorFor(String order) {
+        if (order == null) return null;
+        Comparator<String> text = Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER);
+        Comparator<Date> date = Comparator.nullsLast(Comparator.naturalOrder());
+        switch (order) {
+            case Constants.PLAYLIST_SONG_ORDER_BY_TITLE_ASC: return Comparator.comparing(Child::getTitle, text);
+            case Constants.PLAYLIST_SONG_ORDER_BY_TITLE_DESC: return Comparator.comparing(Child::getTitle, text).reversed();
+            case Constants.PLAYLIST_SONG_ORDER_BY_ARTIST_ASC: return Comparator.comparing(Child::getArtist, text);
+            case Constants.PLAYLIST_SONG_ORDER_BY_ARTIST_DESC: return Comparator.comparing(Child::getArtist, text).reversed();
+            case Constants.PLAYLIST_SONG_ORDER_BY_ALBUM_ASC: return Comparator.comparing(Child::getAlbum, text);
+            case Constants.PLAYLIST_SONG_ORDER_BY_ALBUM_DESC: return Comparator.comparing(Child::getAlbum, text).reversed();
+            case Constants.PLAYLIST_SONG_ORDER_BY_RECENTLY_ADDED: return Comparator.comparing(Child::getCreated, date).reversed();
+            case Constants.PLAYLIST_SONG_ORDER_BY_OLDEST_ADDED: return Comparator.comparing(Child::getCreated, date);
+            default: return null; // ORIGINAL / unknown
+        }
+    }
+
+    /**
+     * Holds serverList as the order the server has and shows it sorted, and hands back the list
+     * the page now shows, which a caller compares against to tell whether what it published is
+     * still on screen.
+     */
+    private List<Child> publishSongs(List<Child> serverList) {
+        serverOrder = serverList;
+        Comparator<Child> comparator = comparatorFor(currentSortOrder);
+        if (comparator == null) {
+            songLiveList.setValue(serverList);
+            return serverList;
+        }
+        List<Child> sorted = new ArrayList<>(serverList);
+        sorted.sort(comparator);
+        songLiveList.setValue(sorted);
+        return sorted;
+    }
+
+    /**
+     * Where song sits in the server's order, by id, or -1 when the page has no list or the song
+     * is not in it. The row's position on screen is a different number once a sort is on, and
+     * the server only takes a position in its own list.
+     */
+    private int serverIndexOf(Child song) {
+        if (serverOrder == null || song == null || song.getId() == null) return -1;
+        for (int i = 0; i < serverOrder.size(); i++) {
+            if (song.getId().equals(serverOrder.get(i).getId())) return i;
+        }
+        return -1;
+    }
+
     public Playlist getPlaylist() {
         return playlist;
     }
@@ -281,6 +378,8 @@ public class PlaylistPageViewModel extends AndroidViewModel {
 
         if (isDifferentPlaylist) {
             this.songLiveList.setValue(null); // Clear old data immediately
+            serverOrder = null;
+            removedSongId = null;
             playlistMissingEvent.setValue(false);
         }
     }

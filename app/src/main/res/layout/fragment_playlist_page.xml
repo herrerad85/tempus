@@ -159,7 +159,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="4dp"
-                        android:layout_marginEnd="16dp"
+                        android:layout_marginEnd="4dp"
                         android:layout_weight="1"
                         android:padding="10dp"
                         android:text="@string/playlist_page_shuffle_button"
@@ -168,6 +168,22 @@
                         app:iconGravity="textStart"
                         app:iconPadding="18dp"
                         android:enabled="false" />
+
+                    <Button
+                        android:id="@+id/playlist_page_sort_button"
+                        style="@style/Widget.Material3.Button.TonalButton.Icon"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginEnd="16dp"
+                        android:padding="10dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:contentDescription="@string/menu_sort_button"
+                        app:icon="@drawable/ic_sort_list"
+                        app:iconGravity="textStart"
+                        app:iconPadding="0dp" />
                 </LinearLayout>
 
                 <TextView
