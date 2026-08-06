@@ -84,7 +84,7 @@ android {
 }
 
 dependencies {
-    implementation files('../libs/lib-decoder-ffmpeg-release.aar')
+    implementation libs.media3.ffmpeg.decoder
 
     // AndroidX
     implementation libs.androidx.activity
