@@ -229,6 +229,10 @@ public class MediaManager {
 
                         backgroundExecutor.execute(() -> {
                             final List<MediaItem> items = MappingUtil.mapMediaItems(media);
+                            // Nothing mapped, so nothing to restore, and returning here saves
+                            // a blocking database read.
+                            if (items.isEmpty()) return;
+
                             final Queue lastPlayed = getQueueRepository().getLastPlayedMedia();
                             final int found = lastPlayed != null
                                     ? MappingUtil.indexOfMediaId(items, lastPlayed.getId())

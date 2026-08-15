@@ -52,7 +52,7 @@ public class MainViewModel extends AndroidViewModel {
 
     public boolean isQueueLoaded() {
         QueueRepository queueRepository = new QueueRepository();
-        return queueRepository.count() != 0;
+        return queueRepository.count() > 0;
     }
 
     public LiveData<SubsonicResponse> ping() {

@@ -39,9 +39,7 @@ open class BaseSessionCallback(
     protected val service: BaseMediaService) :
     MediaLibraryService.MediaLibrarySession.Callback {
 
-    // ─────────────────────────────────────────────────────────────
     // CommandButtons
-    // ─────────────────────────────────────────────────────────────
 
     @SuppressLint("PrivateResource")
     private val customCommandToggleShuffleModeOn =
@@ -200,9 +198,7 @@ open class BaseSessionCallback(
                 }
             }.build()
 
-    // ─────────────────────────────────────────────────────────────
     // onConnect
-    // ─────────────────────────────────────────────────────────────
 
     @OptIn(UnstableApi::class)
     override fun onConnect(
@@ -240,9 +236,7 @@ open class BaseSessionCallback(
             .build()
     }
 
-    // ─────────────────────────────────────────────────────────────
     // Custom layout
-    // ─────────────────────────────────────────────────────────────
 
     @OptIn(UnstableApi::class)
     protected fun updateMediaNotificationCustomLayout(
@@ -321,9 +315,7 @@ open class BaseSessionCallback(
         }
     }
 
-    // ─────────────────────────────────────────────────────────────
     // Rating (heart)
-    // ─────────────────────────────────────────────────────────────
 
     override fun onSetRating(
         session: MediaSession,
@@ -390,9 +382,7 @@ open class BaseSessionCallback(
         return future
     }
 
-    // ─────────────────────────────────────────────────────────────
     // Custom commands dispatcher
-    // ─────────────────────────────────────────────────────────────
 
     @OptIn(UnstableApi::class)
     override fun onCustomCommand(
@@ -458,10 +448,48 @@ open class BaseSessionCallback(
         }
     }
 
-    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Restores the saved queue so playback picks up where it left off. media3 calls this when a
+     * play request arrives while the player has no current media item, which is the state after
+     * the service has been stopped.
+     *
+     * Never completes with an empty list.
+     */
+    @OptIn(UnstableApi::class)
+    override fun onPlaybackResumption(
+        mediaSession: MediaSession,
+        controller: MediaSession.ControllerInfo,
+        isForPlayback: Boolean
+    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        val future = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
+
+        // loadStoredQueueOnce blocks on the database, and on another caller's load when one is
+        // already running. Any throw here has to reach the future, because media3 waits on it and
+        // a future that never completes leaves the service started with nothing playing.
+        Thread {
+            val stored = try {
+                service.loadStoredQueueOnce()
+            } catch (t: Throwable) {
+                Log.e(TAG, "onPlaybackResumption: could not read the saved queue", t)
+                null
+            }
+
+            if (stored != null) {
+                Log.d(TAG, "onPlaybackResumption: restoring ${stored.mediaItems.size} item(s)")
+                future.set(stored)
+                return@Thread
+            }
+
+            Log.d(TAG, "onPlaybackResumption: nothing saved to resume")
+            future.setException(IllegalStateException("No saved queue to resume"))
+        }.start()
+
+        return future
+    }
+
     // onAddMediaItems — basic version (without AA)
     // should be override in MediaLibrarySessionCallback for full Tempus release
-    // ─────────────────────────────────────────────────────────────
 
     override fun onAddMediaItems(
         mediaSession: MediaSession,

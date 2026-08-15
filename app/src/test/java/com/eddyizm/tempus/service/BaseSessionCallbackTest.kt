@@ -2,12 +2,17 @@ package com.eddyizm.tempus.service
 
 import android.content.Context
 import android.os.Bundle
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.MediaSession.ControllerInfo
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeUnit
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.mockito.kotlin.verify
@@ -92,6 +97,93 @@ class BaseSessionCallbackTest {
             
             // Should be registered ONLY ONCE (by onConnect)
             verify(player, times(1)).addListener(any())
+        }
+    }
+
+    @Test
+    fun onPlaybackResumption_failsWhenThereIsNothingToResume() {
+        val context = mock<Context>()
+        val service = mock<BaseMediaService>()
+        val session = mock<MediaSession>()
+        val controller = mock<ControllerInfo>()
+
+        whenever(context.getString(anyInt())).thenReturn("mock_string")
+        whenever(service.loadStoredQueueOnce()).thenReturn(null)
+
+        mockConstruction(SessionCommand::class.java).use {
+            val callback = BaseSessionCallback(context, service)
+
+            val future = callback.onPlaybackResumption(session, controller, true)
+
+            val thrown = try {
+                future.get(5, TimeUnit.SECONDS)
+                null
+            } catch (e: ExecutionException) {
+                e.cause
+            }
+
+            assertTrue(
+                "expected the future to fail, got ${thrown?.javaClass?.simpleName ?: "a result"}",
+                thrown is IllegalStateException
+            )
+        }
+    }
+
+    @Test
+    fun onPlaybackResumption_completesTheFutureWhenTheQueueReadThrows() {
+        val context = mock<Context>()
+        val service = mock<BaseMediaService>()
+        val session = mock<MediaSession>()
+        val controller = mock<ControllerInfo>()
+
+        whenever(context.getString(anyInt())).thenReturn("mock_string")
+        whenever(service.loadStoredQueueOnce()).thenThrow(RuntimeException("database is gone"))
+
+        mockConstruction(SessionCommand::class.java).use {
+            val callback = BaseSessionCallback(context, service)
+
+            val future = callback.onPlaybackResumption(session, controller, true)
+
+            val thrown = try {
+                future.get(5, TimeUnit.SECONDS)
+                null
+            } catch (e: ExecutionException) {
+                e.cause
+            }
+
+            assertTrue(
+                "expected the future to fail, got ${thrown?.javaClass?.simpleName ?: "a result"}",
+                thrown is IllegalStateException
+            )
+        }
+    }
+
+    @Test
+    fun onPlaybackResumption_returnsTheStoredQueue() {
+        val context = mock<Context>()
+        val service = mock<BaseMediaService>()
+        val session = mock<MediaSession>()
+        val controller = mock<ControllerInfo>()
+
+        val stored = MediaSession.MediaItemsWithStartPosition(
+            listOf(MediaItem.Builder().setMediaId("song-1").build()),
+            0,
+            42_000L
+        )
+
+        whenever(context.getString(anyInt())).thenReturn("mock_string")
+        whenever(service.loadStoredQueueOnce()).thenReturn(stored)
+
+        mockConstruction(SessionCommand::class.java).use {
+            val callback = BaseSessionCallback(context, service)
+
+            val result = callback.onPlaybackResumption(session, controller, true)
+                .get(5, TimeUnit.SECONDS)
+
+            assertEquals(1, result.mediaItems.size)
+            assertEquals("song-1", result.mediaItems[0].mediaId)
+            assertEquals(0, result.startIndex)
+            assertEquals(42_000L, result.startPositionMs)
         }
     }
 

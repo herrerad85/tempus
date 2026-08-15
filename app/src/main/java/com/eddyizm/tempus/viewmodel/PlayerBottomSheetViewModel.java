@@ -291,6 +291,13 @@ public class PlayerBottomSheetViewModel extends AndroidViewModel {
         List<Child> queue = queueRepository.getMedia();
         List<String> ids = queue.stream().map(Child::getId).collect(Collectors.toList());
 
+        // An unreadable queue reads as an empty one, and saving that overwrites the server copy
+        // with nothing while telling the user it worked.
+        if (ids.isEmpty()) {
+            Log.d(TAG, "Not saving an empty play queue");
+            return false;
+        }
+
         if (media != null) {
             // TODO: We need to get the actual playback position here
             Log.d(TAG, "Saving play queue - Current: " + media.getId() + ", Items: " + ids.size());

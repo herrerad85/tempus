@@ -43,9 +43,12 @@ public class QueueRepository {
 
         try {
             thread.join();
-            media = getMedia.getMedia().stream()
-                    .map(Child.class::cast)
-                    .collect(Collectors.toList());
+            List<Queue> read = getMedia.getMedia();
+            if (read != null) {
+                media = read.stream()
+                        .map(Child.class::cast)
+                        .collect(Collectors.toList());
+            }
 
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -199,9 +202,13 @@ public class QueueRepository {
 
         try {
             thread.join();
+            if (countThread.hasFailed()) {
+                return -1;
+            }
             count = countThread.getCount();
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            Thread.currentThread().interrupt();
+            return -1;
         }
 
         return count;
@@ -221,6 +228,10 @@ public class QueueRepository {
         dbExecutor.execute(() -> queueDao.setResumePoint(id, System.currentTimeMillis(), positionMs));
     }
 
+    /**
+     * Returns null when there is no stored row and also when the read failed. Both callers treat
+     * the two the same way, by starting from the top of the queue.
+     */
     public Queue getLastPlayedMedia() {
         GetLastPlayedMediaThreadSafe getLastPlayedMediaThreadSafe = new GetLastPlayedMediaThreadSafe(queueDao);
         Thread thread = new Thread(getLastPlayedMediaThreadSafe);
@@ -228,9 +239,12 @@ public class QueueRepository {
 
         try {
             thread.join();
+            if (getLastPlayedMediaThreadSafe.hasFailed()) {
+                return null;
+            }
             return getLastPlayedMediaThreadSafe.getQueueItem();
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            Thread.currentThread().interrupt();
             return null;
         }
     }
@@ -243,9 +257,15 @@ public class QueueRepository {
             this.queueDao = queueDao;
         }
 
+        // A database error here would otherwise reach the default uncaught handler and kill the
+        // process, because this runs on its own thread and the caller only joins it.
         @Override
         public void run() {
-            media = queueDao.getAllSimple();
+            try {
+                media = queueDao.getAllSimple();
+            } catch (Throwable t) {
+                Log.e(TAG, "Failed to read the queue", t);
+            }
         }
 
         public List<Queue> getMedia() {
@@ -256,6 +276,7 @@ public class QueueRepository {
     private static class CountThreadSafe implements Runnable {
         private final QueueDao queueDao;
         private int count = 0;
+        private volatile boolean failed;
 
         public CountThreadSafe(QueueDao queueDao) {
             this.queueDao = queueDao;
@@ -263,17 +284,27 @@ public class QueueRepository {
 
         @Override
         public void run() {
-            count = queueDao.count();
+            try {
+                count = queueDao.count();
+            } catch (Throwable t) {
+                failed = true;
+                Log.e(TAG, "Failed to count the queue", t);
+            }
         }
 
         public int getCount() {
             return count;
+        }
+
+        public boolean hasFailed() {
+            return failed;
         }
     }
 
     private static class GetLastPlayedMediaThreadSafe implements Runnable {
         private final QueueDao queueDao;
         private Queue lastMediaPlayed;
+        private volatile boolean failed;
 
         public GetLastPlayedMediaThreadSafe(QueueDao queueDao) {
             this.queueDao = queueDao;
@@ -281,11 +312,20 @@ public class QueueRepository {
 
         @Override
         public void run() {
-            lastMediaPlayed = queueDao.getLastPlayed();
+            try {
+                lastMediaPlayed = queueDao.getLastPlayed();
+            } catch (Throwable t) {
+                failed = true;
+                Log.e(TAG, "Failed to read the last played row", t);
+            }
         }
 
         public Queue getQueueItem() {
             return lastMediaPlayed;
+        }
+
+        public boolean hasFailed() {
+            return failed;
         }
     }
 

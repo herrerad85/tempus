@@ -45,7 +45,9 @@ import com.google.common.util.concurrent.MoreExecutors
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
+import java.util.concurrent.FutureTask
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -74,6 +76,7 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
     // posts the player calls back to this handler; if the service is destroyed mid map (the app
     // swiped away during launch), that post must not touch the now released player.
     @Volatile private var serviceDestroyed = false
+    private var storedQueueLoad: FutureTask<MediaSession.MediaItemsWithStartPosition?>? = null
     private val widgetUpdateRunnable = object : Runnable {
         override fun run() {
             val player = mediaLibrarySession.player
@@ -233,42 +236,101 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
         }
     }
 
+    /**
+     * An unreadable resume point starts the queue from the beginning instead of refusing, because
+     * on the resumption path media3 presses play on the empty player when this returns nothing.
+     *
+     * Use loadStoredQueueOnce wherever two loads can overlap.
+     */
+    fun loadStoredQueue(): MediaSession.MediaItemsWithStartPosition? {
+        val queueRepository = QueueRepository()
+        val storedQueue = queueRepository.media
+        if (storedQueue.isNullOrEmpty()) return null
+
+        val mediaItems = MappingUtil.mapMediaItems(storedQueue)
+        if (mediaItems.isEmpty()) return null
+
+        val lastPlayed = try {
+            queueRepository.lastPlayedMedia
+        } catch (_: Exception) {
+            null
+        }
+
+        // The row carries its own position, so an identified track always keeps the offset that
+        // was stored with it. A row we cannot place in the mapped list starts from the top.
+        var lastIndex = 0
+        var lastPosition = 0L
+
+        if (lastPlayed != null) {
+            val found = MappingUtil.indexOfMediaId(mediaItems, lastPlayed.id)
+            if (found >= 0) {
+                lastIndex = found
+                lastPosition = lastPlayed.playingChanged.coerceAtLeast(0L)
+            }
+        }
+
+        return MediaSession.MediaItemsWithStartPosition(mediaItems, lastIndex, lastPosition)
+    }
+
+    /**
+     * Runs one load for however many callers want it at the same time. A cold start from a media
+     * button has two: onCreate always starts one, and the resumption callback starts another when
+     * the play command finds an empty player. Two loads are slow, since each one reads the queue
+     * table and then, when a download directory is configured, asks it about every song, and one
+     * of them comes back wrong: ExternalAudioReader's cache refresh returns early for a second
+     * caller and leaves it resolving downloaded songs to server stream urls instead of local
+     * files.
+     */
+    fun loadStoredQueueOnce(): MediaSession.MediaItemsWithStartPosition? {
+        val task: FutureTask<MediaSession.MediaItemsWithStartPosition?>
+        var mine = false
+
+        // Only the bookkeeping is under the monitor, never the load itself. Holding it across the
+        // load would put one whole read in front of the other on the path that has to reach
+        // startForeground before the platform gives up on it.
+        synchronized(this) {
+            val running = storedQueueLoad
+            if (running != null) {
+                task = running
+            } else {
+                task = FutureTask(Callable { loadStoredQueue() })
+                storedQueueLoad = task
+                mine = true
+            }
+        }
+
+        try {
+            if (mine) task.run()
+            return task.get()
+        } catch (e: ExecutionException) {
+            throw e.cause ?: e
+        } finally {
+            if (mine) {
+                synchronized(this) {
+                    if (storedQueueLoad === task) storedQueueLoad = null
+                }
+            }
+        }
+    }
+
     fun restorePlayerFromQueue(player: Player) {
         if (player.mediaItemCount > 0) return
 
-        // Map off the main thread: mapMediaItems does a blocking lookup per song, so a
-        // large saved queue froze the UI on launch (#600).
+        // Load off the main thread: a large saved queue froze the UI on launch (#600).
         Thread {
-            val queueRepository = QueueRepository()
-            val storedQueue = queueRepository.media
-            if (storedQueue.isNullOrEmpty()) return@Thread
-
-            val mediaItems = MappingUtil.mapMediaItems(storedQueue)
-            if (mediaItems.isEmpty()) return@Thread
-
-            val lastPlayed = try {
-                queueRepository.lastPlayedMedia
-            } catch (_: Exception) {
+            val stored = try {
+                loadStoredQueueOnce()
+            } catch (t: Throwable) {
+                Log.e(TAG, "restorePlayerFromQueue: could not read the saved queue", t)
                 null
-            }
-
-            var lastIndex = 0
-            var lastPosition = 0L
-
-            if (lastPlayed != null) {
-                val found = MappingUtil.indexOfMediaId(mediaItems, lastPlayed.id)
-                if (found >= 0) {
-                    lastIndex = found
-                    lastPosition = lastPlayed.playingChanged.coerceAtLeast(0L)
-                }
-            }
+            } ?: return@Thread
 
             widgetUpdateHandler.post {
                 // onDestroy may have released the player while this queue was still mapping, and
                 // the mediaItemCount check below cannot detect a released player, so bail first.
                 if (serviceDestroyed) return@post
                 if (player.mediaItemCount > 0) return@post
-                player.setMediaItems(mediaItems, lastIndex, lastPosition)
+                player.setMediaItems(stored.mediaItems, stored.startIndex, stored.startPositionMs)
                 player.prepare()
                 updateWidget(player)
             }

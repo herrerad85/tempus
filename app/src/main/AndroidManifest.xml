@@ -95,6 +95,16 @@
                 android:value="true" />
         </service>
 
+        <!-- Lets the system hand a play command from a bluetooth device or a headset button back
+             to the app after the service has stopped. -->
+        <receiver
+            android:name=".service.ResumePlaybackButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".widget.WidgetProvider4x1"
             android:exported="false"
