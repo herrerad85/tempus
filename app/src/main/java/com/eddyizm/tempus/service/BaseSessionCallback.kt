@@ -21,8 +21,10 @@ import androidx.media3.session.SessionResult
 import com.eddyizm.tempus.App
 import com.eddyizm.tempus.R
 import com.eddyizm.tempus.subsonic.base.ApiResponse
+import com.eddyizm.tempus.subsonic.models.ResponseStatus
 import com.eddyizm.tempus.util.Constants
 import com.eddyizm.tempus.util.Preferences
+import com.eddyizm.tempus.util.FavoriteRegistry
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -360,7 +362,11 @@ open class BaseSessionCallback(
         networkCall.enqueue(object : Callback<ApiResponse?> {
             @OptIn(UnstableApi::class)
             override fun onResponse(call: Call<ApiResponse?>, response: Response<ApiResponse?>) {
-                if (response.isSuccessful) {
+                val refused = response.body()?.subsonicResponse?.status == ResponseStatus.FAILED
+
+                if (response.isSuccessful && !refused) {
+                    FavoriteRegistry.set(FavoriteRegistry.Kind.SONG, mediaId, isStarring)
+
                     for (i in 0 until session.player.mediaItemCount) {
                         val mediaItem = session.player.getMediaItemAt(i)
                         if (mediaItem.mediaId == mediaId) {
