@@ -17,6 +17,7 @@ import com.eddyizm.tempus.App
 import com.eddyizm.tempus.R
 import com.eddyizm.tempus.databinding.FragmentLoginServerBinding
 import com.eddyizm.tempus.model.Server
+import com.eddyizm.tempus.repository.PlaylistRepository
 import com.eddyizm.tempus.subsonic.utils.StringUtil
 import com.eddyizm.tempus.ui.activity.MainActivity
 import com.eddyizm.tempus.viewmodel.ServerViewModel
@@ -203,6 +204,7 @@ class LoginServerFragment : Fragment() {
     fun initTestButton() {
         binding.testButton.setOnLongClickListener {
             updateLegacySharedPreferences()
+            PlaylistRepository().refreshAllPlaylists()
             requireActivity().finish()
             val tempus = Intent(context, MainActivity::class.java)
             startActivity(tempus)
