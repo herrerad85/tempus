@@ -19,6 +19,8 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.times
 import org.mockito.ArgumentMatchers.anyInt
 import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.anyString
+import org.mockito.kotlin.never
 import org.mockito.Mockito.mockConstruction
 
 class BaseSessionCallbackTest {
@@ -126,6 +128,11 @@ class BaseSessionCallbackTest {
                 "expected the future to fail, got ${thrown?.javaClass?.simpleName ?: "a result"}",
                 thrown is IllegalStateException
             )
+
+            // The service was started on a promise of a startForeground call and there is nothing
+            // to play, so this path owes the platform one. Without it the process is killed with
+            // ForegroundServiceDidNotStartInTimeException.
+            verify(service).keepForegroundPromise(anyString())
         }
     }
 
@@ -155,6 +162,8 @@ class BaseSessionCallbackTest {
                 "expected the future to fail, got ${thrown?.javaClass?.simpleName ?: "a result"}",
                 thrown is IllegalStateException
             )
+
+            verify(service).keepForegroundPromise(anyString())
         }
     }
 
@@ -184,6 +193,10 @@ class BaseSessionCallbackTest {
             assertEquals("song-1", result.mediaItems[0].mediaId)
             assertEquals(0, result.startIndex)
             assertEquals(42_000L, result.startPositionMs)
+
+            // The content guard runs later, on the main thread, so whether it would see the items
+            // media3 is about to set is a race. Only not calling it on this path is safe.
+            verify(service, never()).keepForegroundPromise(anyString())
         }
     }
 

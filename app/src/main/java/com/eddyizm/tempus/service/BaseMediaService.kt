@@ -1,5 +1,8 @@
 package com.eddyizm.tempus.service
 
+import android.annotation.SuppressLint
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.app.PendingIntent.FLAG_UPDATE_CURRENT
 import android.app.TaskStackBuilder
@@ -9,12 +12,17 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.Binder
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.KeyEvent
 import androidx.media3.common.*
+import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+import androidx.core.content.IntentCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -28,6 +36,7 @@ import androidx.media3.session.MediaSession.ControllerInfo
 import androidx.media3.extractor.metadata.icy.IcyInfo
 import androidx.media3.extractor.metadata.id3.TextInformationFrame
 import androidx.media3.extractor.metadata.vorbis.VorbisComment
+import com.eddyizm.tempus.R
 import com.eddyizm.tempus.equalizer.BuiltinBackend
 import com.eddyizm.tempus.equalizer.EqualizerBackend
 import com.eddyizm.tempus.equalizer.EqualizerManager
@@ -54,6 +63,64 @@ import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 private const val TAG = "BaseMediaService"
+
+private const val RESUME_SHUTDOWN_CHANNEL_ID = "resume_shutdown"
+private const val RESUME_SHUTDOWN_NOTIFICATION_ID = 1014
+
+/**
+ * The keys a media button start can arrive on that oblige a startForeground call. From API 26 up,
+ * media3 forwards only these three to a media button receiver and drops the rest, and its own
+ * notification builds a foreground service start only for play pause while paused, so next,
+ * previous and stop from that notification oblige nothing, read from
+ * DefaultActionFactory.createMediaActionPendingIntent in 1.9.2. Below API 31 media3 aims the
+ * session's own media button intent at this service instead of at the receiver, and what the
+ * platform sends there has not been established.
+ */
+private val FOREGROUND_START_KEY_CODES = intArrayOf(
+    KeyEvent.KEYCODE_HEADSETHOOK,
+    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+    KeyEvent.KEYCODE_MEDIA_PLAY
+)
+
+/**
+ * Whether a start of this service carries a promise of a startForeground call. media3 starts it with
+ * the media button intent, and from API 26 up such a start is a real startForegroundService, which
+ * obliges the process to call startForeground. Below 26 ContextCompat.startForegroundService is a
+ * plain startService and obliges nothing, read from the core 1.18.0 bytecode.
+ *
+ * Play pause pressed while already playing is the one start that records a promise it does not owe,
+ * because media3's notification sends keycode 85 whatever the player is doing. It is harmless. The
+ * player has content, so keepForegroundPromise leaves it alone, and media3 clears the record on the
+ * pause itself, through the grace window described on owesForegroundStart.
+ */
+internal fun startCommandPromisesForeground(action: String?, keyCode: Int, sdkInt: Int): Boolean =
+    sdkInt >= Build.VERSION_CODES.O &&
+        action == Intent.ACTION_MEDIA_BUTTON &&
+        keyCode in FOREGROUND_START_KEY_CODES
+
+/**
+ * Whether removing the task stops this service. Playback that is running keeps it alive; anything
+ * else is a service the user has dismissed.
+ */
+internal fun stopsOnTaskRemoved(playWhenReady: Boolean, playerHasContent: Boolean): Boolean =
+    !playWhenReady || !playerHasContent
+
+/**
+ * Whether this service has to keep that promise itself, instead of leaving it to media3.
+ *
+ * A destroyed service cannot call startForeground, and one holding media items is left alone,
+ * because stopping a service that is playing takes the media notification with it and media3 goes
+ * foreground for it once playback starts. It wants playWhenReady and a state of READY or BUFFERING
+ * for that, and then holds the service foreground for ten more minutes after playback stops, both
+ * read from MediaNotificationManager in 1.9.2. So a paused queue is still covered by media3 for a
+ * while, and a queue that never plays at all leaves the promise outstanding, which this does not
+ * cover.
+ */
+internal fun owesForegroundStart(
+    promised: Boolean,
+    serviceDestroyed: Boolean,
+    playerHasContent: Boolean
+): Boolean = promised && !serviceDestroyed && !playerHasContent
 
 @UnstableApi
 open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
@@ -98,10 +165,32 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
 
     private val binder = LocalBinder()
 
+    /**
+     * True while this service owes the platform the startForeground call its own start promised.
+     * Per instance, because the obligation belongs to one service record: a process wide flag is
+     * either inherited by a service that owes nothing or cleared out from under one that does.
+     */
+    @Volatile
+    private var foregroundStartPromised = false
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val keyEvent = intent?.let {
+            IntentCompat.getParcelableExtra(it, Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
+        }
+
+        if (startCommandPromisesForeground(
+                intent?.action,
+                keyEvent?.keyCode ?: KeyEvent.KEYCODE_UNKNOWN,
+                Build.VERSION.SDK_INT
+            )
+        ) {
+            foregroundStartPromised = true
+        }
+
         when (intent?.action) {
             ACTION_RELOAD_EQUALIZER -> reloadEqualizer()
         }
+
         return super.onStartCommand(intent, flags, startId)
     }
 
@@ -313,6 +402,88 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
         }
     }
 
+    /**
+     * Only playback keeps the promise, because media3 goes foreground for a session that is playing
+     * or buffering, so a restore that finds nothing to play has to keep it here instead.
+     *
+     * Stopping without keeping it is not a way out. ActiveServices treats a service brought down
+     * before it has shown a notification as the same violation and crashes the process at once,
+     * where sitting out the timeout crashes it a few seconds later.
+     *
+     * Both callers reach this from a background load, so the whole decision is made on the main
+     * thread. Reading the record here would be wrong as well as racy, restorePlayerFromQueue starts
+     * from onCreate, which runs before onStartCommand has recorded anything.
+     */
+    fun keepForegroundPromise(reason: String) {
+        widgetUpdateHandler.post {
+            // Not read when the service is destroyed: isInitialized stays true after onDestroy and
+            // a released player still reports the timeline it held.
+            val hasContent = !serviceDestroyed &&
+                this::mediaLibrarySession.isInitialized &&
+                mediaLibrarySession.player.mediaItemCount > 0
+
+            if (!owesForegroundStart(foregroundStartPromised, serviceDestroyed, hasContent)) {
+                return@post
+            }
+
+            dischargeForegroundPromiseAndStop(reason)
+        }
+    }
+
+    /**
+     * Takes the service foreground on a throwaway notification, drops it and stops. Main thread
+     * only.
+     *
+     * Two callers reach it. keepForegroundPromise, when this service owes a startForeground it will
+     * never make by playing, and onTaskRemoved, which is stopping anyway and so discharges whatever
+     * the player holds. The cost of the second one on a promise that was not owed is a notification
+     * posted and pulled on the way out.
+     */
+    @SuppressLint("PrivateResource")
+    private fun dischargeForegroundPromiseAndStop(reason: String) {
+        foregroundStartPromised = false
+
+        Log.w(TAG, "dischargeForegroundPromise: $reason, going foreground so the service can stop")
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                getSystemService(NotificationManager::class.java)?.createNotificationChannel(
+                    NotificationChannel(
+                        RESUME_SHUTDOWN_CHANNEL_ID,
+                        getString(R.string.app_name),
+                        NotificationManager.IMPORTANCE_LOW
+                    )
+                )
+            }
+
+            val notification = NotificationCompat.Builder(this, RESUME_SHUTDOWN_CHANNEL_ID)
+                .setSmallIcon(androidx.media3.session.R.drawable.media3_notification_small_icon)
+                .setContentTitle(getString(R.string.app_name))
+                .setSilent(true)
+                .build()
+
+            startForeground(RESUME_SHUTDOWN_NOTIFICATION_ID, notification)
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        } catch (t: Throwable) {
+            // Stopping anyway is not worse. The promise is already broken at this point, and
+            // sitting here until the timeout ends in the same crash.
+            Log.e(TAG, "dischargeForegroundPromise: could not go foreground", t)
+        }
+
+        stopSelf()
+    }
+
+    override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
+        super.onUpdateNotification(session, startInForegroundRequired)
+
+        // media3 takes the service foreground itself on the ordinary path, which keeps the
+        // promise. Cleared after super, not before it, so a call that throws leaves the promise
+        // standing.
+        if (startInForegroundRequired) {
+            foregroundStartPromised = false
+        }
+    }
+
     fun restorePlayerFromQueue(player: Player) {
         if (player.mediaItemCount > 0) return
 
@@ -323,7 +494,12 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
             } catch (t: Throwable) {
                 Log.e(TAG, "restorePlayerFromQueue: could not read the saved queue", t)
                 null
-            } ?: return@Thread
+            }
+
+            if (stored == null) {
+                keepForegroundPromise("restorePlayerFromQueue found nothing to play")
+                return@Thread
+            }
 
             widgetUpdateHandler.post {
                 // onDestroy may have released the player while this queue was still mapping, and
@@ -736,7 +912,14 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaLibrarySession.player
 
-        if (!player.playWhenReady || player.mediaItemCount == 0) {
+        if (!stopsOnTaskRemoved(player.playWhenReady, player.mediaItemCount > 0)) return
+
+        // Stopping while the platform is still owed a startForeground is the same violation as
+        // never making one, so the promise is kept on the way out. This already runs on the main
+        // thread, and the discharge ends in stopSelf itself.
+        if (foregroundStartPromised && !serviceDestroyed) {
+            dischargeForegroundPromiseAndStop("the task was removed")
+        } else {
             stopSelf()
         }
     }

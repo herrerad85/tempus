@@ -39,7 +39,9 @@ open class BaseSessionCallback(
     protected val service: BaseMediaService) :
     MediaLibraryService.MediaLibrarySession.Callback {
 
+    // ─────────────────────────────────────────────────────────────
     // CommandButtons
+    // ─────────────────────────────────────────────────────────────
 
     @SuppressLint("PrivateResource")
     private val customCommandToggleShuffleModeOn =
@@ -198,7 +200,9 @@ open class BaseSessionCallback(
                 }
             }.build()
 
+    // ─────────────────────────────────────────────────────────────
     // onConnect
+    // ─────────────────────────────────────────────────────────────
 
     @OptIn(UnstableApi::class)
     override fun onConnect(
@@ -236,7 +240,9 @@ open class BaseSessionCallback(
             .build()
     }
 
+    // ─────────────────────────────────────────────────────────────
     // Custom layout
+    // ─────────────────────────────────────────────────────────────
 
     @OptIn(UnstableApi::class)
     protected fun updateMediaNotificationCustomLayout(
@@ -315,7 +321,9 @@ open class BaseSessionCallback(
         }
     }
 
+    // ─────────────────────────────────────────────────────────────
     // Rating (heart)
+    // ─────────────────────────────────────────────────────────────
 
     override fun onSetRating(
         session: MediaSession,
@@ -382,7 +390,9 @@ open class BaseSessionCallback(
         return future
     }
 
+    // ─────────────────────────────────────────────────────────────
     // Custom commands dispatcher
+    // ─────────────────────────────────────────────────────────────
 
     @OptIn(UnstableApi::class)
     override fun onCustomCommand(
@@ -448,7 +458,6 @@ open class BaseSessionCallback(
         }
     }
 
-
     /**
      * Restores the saved queue so playback picks up where it left off. media3 calls this when a
      * play request arrives while the player has no current media item, which is the state after
@@ -482,14 +491,20 @@ open class BaseSessionCallback(
             }
 
             Log.d(TAG, "onPlaybackResumption: nothing saved to resume")
+            // media3 answers a failed future by playing anyway, and an empty player prepares to
+            // STATE_ENDED, which never takes the service foreground. Keep the promise here or
+            // the platform kills the process.
+            service.keepForegroundPromise("onPlaybackResumption found nothing to resume")
             future.setException(IllegalStateException("No saved queue to resume"))
         }.start()
 
         return future
     }
 
+    // ─────────────────────────────────────────────────────────────
     // onAddMediaItems — basic version (without AA)
     // should be override in MediaLibrarySessionCallback for full Tempus release
+    // ─────────────────────────────────────────────────────────────
 
     override fun onAddMediaItems(
         mediaSession: MediaSession,
