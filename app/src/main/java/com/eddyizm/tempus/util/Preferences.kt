@@ -994,7 +994,7 @@ object Preferences {
 
     @JvmStatic
     fun setPlaylistSongSortOrder(sortOrder: String) {
-        App.getInstance().preferences.edit().putString(PLAYLIST_SONG_SORT_ORDER, sortOrder).apply()
+        App.getInstance().preferences.edit { putString(PLAYLIST_SONG_SORT_ORDER, sortOrder) }
     }
 
     @JvmStatic
