@@ -24,6 +24,7 @@ okhttpLogging = "5.0.0-alpha.14"
 sdp = "1.1.1"
 customactivityoncrash = "2.4.0"
 shimmer = "0.5.0"
+leakcanary = "2.14"
 annotation = "1.10.0"
 activityKtx = "1.13.0"
 lifecycleLivedataKtx = "2.11.0"
@@ -68,6 +69,7 @@ okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor",
 sdp-android = { group = "com.intuit.sdp", name = "sdp-android", version.ref = "sdp" }
 customactivityoncrash = { group = "cat.ereza", name = "customactivityoncrash", version.ref = "customactivityoncrash" }
 shimmer = { group = "com.facebook.shimmer", name = "shimmer", version.ref = "shimmer" }
+leakcanary-android = { group = "com.squareup.leakcanary", name = "leakcanary-android", version.ref = "leakcanary" }
 
 kotlin-metadata = { group = "org.jetbrains.kotlin", name = "kotlin-metadata-jvm", version.ref = "kotlin" }
 androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "annotation" }

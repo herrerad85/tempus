@@ -147,7 +147,7 @@ dependencies {
     androidTestImplementation libs.androidx.test.runner
     // LeakCanary (debug builds only — auto-installs via ContentProvider, no release impact).
     // Used to hunt retained Activities/Fragments behind the OOM crashes (#777/#696/#688).
-    debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.14'
+    debugImplementation libs.leakcanary.android
 }
 
 java {

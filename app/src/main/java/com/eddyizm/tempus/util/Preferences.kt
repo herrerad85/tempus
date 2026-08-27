@@ -1,6 +1,7 @@
 package com.eddyizm.tempus.util
 
 import android.util.Log
+import androidx.core.content.edit
 import androidx.media3.common.Player
 import com.eddyizm.tempus.App
 import com.eddyizm.tempus.model.HomeSector
@@ -960,7 +961,7 @@ object Preferences {
 
     @JvmStatic
     fun setPlaylistSongSortOrder(sortOrder: String) {
-        App.getInstance().preferences.edit().putString(PLAYLIST_SONG_SORT_ORDER, sortOrder).apply()
+        App.getInstance().preferences.edit { putString(PLAYLIST_SONG_SORT_ORDER, sortOrder) }
     }
 
     @JvmStatic
