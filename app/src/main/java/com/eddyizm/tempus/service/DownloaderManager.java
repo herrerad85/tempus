@@ -25,6 +25,8 @@ import com.eddyizm.tempus.util.MusicUtil;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @UnstableApi
 public class DownloaderManager {
@@ -35,6 +37,9 @@ public class DownloaderManager {
     private final DownloadIndex downloadIndex;
 
     private static HashMap<String, Download> downloads;
+    // Ids handed to the service and not yet completed, failed or removed. The map above only
+    // learns about a download once it completes.
+    private static final Set<String> requested = ConcurrentHashMap.newKeySet();
 
     public DownloaderManager(Context context, DataSource.Factory dataSourceFactory, DownloadManager downloadManager) {
         this.context = context.getApplicationContext();
@@ -70,19 +75,35 @@ public class DownloaderManager {
         return mediaItems.stream().anyMatch(this::isDownloaded);
     }
 
-    public void download(MediaItem mediaItem, com.eddyizm.tempus.model.Download download) {
-        MusicUtil.applyTranscodedDownloadMetadata(download);
-
-        download.setDownloadUri(mediaItem.requestMetadata.mediaUri.toString());
-
-        DownloadService.sendAddDownload(context, DownloaderService.class, buildDownloadRequest(mediaItem), false);
-        insertDatabase(download);
+    public boolean isRequested(String mediaId) {
+        return requested.contains(mediaId);
     }
 
-    public void download(List<MediaItem> mediaItems, List<com.eddyizm.tempus.model.Download> downloads) {
-        for (int counter = 0; counter < mediaItems.size(); counter++) {
-            download(mediaItems.get(counter), downloads.get(counter));
+    /** True when the request reached the service. A start Android refuses from the background is logged and skipped. */
+    public boolean download(MediaItem mediaItem, com.eddyizm.tempus.model.Download download) {
+        MusicUtil.applyTranscodedDownloadMetadata(download);
+        download.setDownloadUri(mediaItem.requestMetadata.mediaUri.toString());
+        // Marked before the send so a completion racing this call cannot leave the id behind.
+        DownloadRequest request = buildDownloadRequest(mediaItem);
+        requested.add(mediaItem.mediaId);
+        try {
+            DownloadService.sendAddDownload(context, DownloaderService.class, request, false);
+        } catch (IllegalStateException e) {
+            requested.remove(mediaItem.mediaId);
+            Log.w(TAG, "Download service not started for " + mediaItem.mediaId, e);
+            return false;
         }
+        insertDatabase(download);
+        return true;
+    }
+
+    /** Returns how many requests reached the service. */
+    public int download(List<MediaItem> mediaItems, List<com.eddyizm.tempus.model.Download> downloads) {
+        int sent = 0;
+        for (int counter = 0; counter < mediaItems.size(); counter++) {
+            if (download(mediaItems.get(counter), downloads.get(counter))) sent++;
+        }
+        return sent;
     }
 
     public void remove(MediaItem mediaItem, com.eddyizm.tempus.model.Download download) {
@@ -122,11 +143,17 @@ public class DownloaderManager {
     public static void updateRequestDownload(Download download) {
         updateDatabase(download.request.id);
         downloads.put(download.request.id, download);
+        requested.remove(download.request.id);
     }
 
     public static void removeRequestDownload(Download download) {
         deleteDatabase(download.request.id);
         downloads.remove(download.request.id);
+        requested.remove(download.request.id);
+    }
+
+    public static void forgetRequest(Download download) {
+        requested.remove(download.request.id);
     }
 
     private static DownloadRepository getDownloadRepository() {

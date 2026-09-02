@@ -60,6 +60,7 @@ import com.eddyizm.tempus.util.AssetLinkNavigator;
 import com.eddyizm.tempus.util.AssetLinkUtil;
 import com.eddyizm.tempus.util.Constants;
 import com.eddyizm.tempus.util.DownloadRepair;
+import com.eddyizm.tempus.repository.PlaylistRepository;
 import com.eddyizm.tempus.util.Preferences;
 import com.eddyizm.tempus.viewmodel.MainViewModel;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -176,6 +177,7 @@ public class MainActivity extends BaseActivity {
     protected void onDestroy() {
         super.onDestroy();
         connectivityStatusReceiverManager(false);
+        if (isFinishing()) PlaylistRepository.resetKeptSync();
         bind = null;
     }
 
@@ -459,6 +461,7 @@ public class MainActivity extends BaseActivity {
 
     public void goFromLogin() {
         setBottomSheetInPeek(mainViewModel.isQueueLoaded());
+        new PlaylistRepository().syncKeptPlaylists(getApplicationContext());
         goToHome();
         consumePendingAssetLink();
     }
@@ -488,6 +491,7 @@ public class MainActivity extends BaseActivity {
     }
 
     private void resetUserSession() {
+        PlaylistRepository.resetKeptSync();
         Preferences.setServerId(null);
         Preferences.setSalt(null);
         Preferences.setToken(null);

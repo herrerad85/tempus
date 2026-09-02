@@ -26,6 +26,7 @@ public class PlaylistPageViewModel extends AndroidViewModel {
     private boolean isOffline;
 
     private final MutableLiveData<List<Child>> songLiveList = new MutableLiveData<>();
+    private int latestFetch;
     private final MutableLiveData<Boolean> playlistMissingEvent = new MutableLiveData<>();
 
     public PlaylistPageViewModel(@NonNull Application application) {
@@ -61,18 +62,27 @@ public class PlaylistPageViewModel extends AndroidViewModel {
         return songLiveList;
     }
 
-    private void refreshSongs() {
+    /** The list as it stands, without starting a fetch. */
+    public LiveData<List<Child>> songs() {
+        return songLiveList;
+    }
+
+    public void refreshSongs() {
         if (playlist == null) return;
-        LiveData<List<Child>> remoteData = playlistRepository.getPlaylistSongs(playlist.getId());
+        String fetchedId = playlist.getId();
+        int fetch = ++latestFetch;
+        LiveData<List<Child>> remoteData = playlistRepository.getPlaylistSongs(fetchedId);
         remoteData.observeForever(new androidx.lifecycle.Observer<List<Child>>() {
             @Override
             public void onChanged(List<Child> songs) {
+                remoteData.removeObserver(this);
+                // A newer fetch is out, or the page moved on to another playlist.
+                if (fetch != latestFetch || playlist == null || !fetchedId.equals(playlist.getId())) return;
                 if (songs == null) {
                     playlistMissingEvent.postValue(true);
                 } else {
                     songLiveList.postValue(songs);
                 }
-                remoteData.removeObserver(this);
             }
         });
     }
@@ -111,6 +121,18 @@ public class PlaylistPageViewModel extends AndroidViewModel {
         } else {
             playlistRepository.unpin(playlist.getId());
         }
+    }
+
+    public LiveData<Boolean> isKeptSynced() {
+        if (playlist == null) return new MutableLiveData<>(false);
+        return playlistRepository.isKeptSynced(playlist.getId());
+    }
+
+    /** False when there is no server to key the flag by, so nothing was written. */
+    public boolean setKeptSynced(boolean kept) {
+        if (playlist == null) return false;
+        playlistRepository.insertIfAbsent(playlist);
+        return playlistRepository.setKeptSynced(playlist.getId(), kept);
     }
 
     public void updateLastPlayed(String playlistId) {
