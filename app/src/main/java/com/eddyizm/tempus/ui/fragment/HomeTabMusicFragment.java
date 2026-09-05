@@ -1331,8 +1331,8 @@ public class HomeTabMusicFragment extends Fragment implements ClickCallback {
     @Override
     public void onArtistClick(Bundle bundle) {
         if (bundle.containsKey(Constants.MEDIA_MIX) && bundle.getBoolean(Constants.MEDIA_MIX)) {
-            Snackbar.make(requireView(), R.string.artist_adapter_radio_station_starting, Snackbar.LENGTH_LONG)
-                    .setAnchorView(activity.bind.playerBottomSheet)
+            Snackbar.make(activity.bind.playerBottomSheet, R.string.artist_adapter_radio_station_starting, Snackbar.LENGTH_LONG)
+                    .setAnchorView(activity.getSnackbarAnchor())
                     .show();
 
             if (mediaBrowserListenableFuture != null) {

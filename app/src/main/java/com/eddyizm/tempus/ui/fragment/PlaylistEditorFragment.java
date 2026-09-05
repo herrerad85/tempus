@@ -171,7 +171,7 @@ public class PlaylistEditorFragment extends Fragment implements PlaylistDialogSo
 
         boolean[] undone = {false};
         undoSnackbar = Snackbar.make(activity.bind.playerBottomSheet, R.string.playlist_editor_removed_track, Snackbar.LENGTH_LONG)
-                .setAnchorView(activity.bind.playerBottomSheet)
+                .setAnchorView(activity.getSnackbarAnchor())
                 .setAction(R.string.song_bottom_sheet_undo, v -> {
                     if (adapter == null || undone[0] || playlistEditorViewModel.isSavePending()) return;
                     undone[0] = true;

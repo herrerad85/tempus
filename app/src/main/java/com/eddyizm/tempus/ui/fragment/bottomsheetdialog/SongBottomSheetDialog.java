@@ -264,7 +264,7 @@ public class SongBottomSheetDialog extends BottomSheetDialogFragment implements 
                         // The page refetches on the repository trigger after the undo lands, as
                         // it does after the remove.
                         Snackbar.make(activity.bind.playerBottomSheet, R.string.playlist_chooser_dialog_toast_remove_success, Snackbar.LENGTH_LONG)
-                                .setAnchorView(activity.bind.playerBottomSheet)
+                                .setAnchorView(activity.getSnackbarAnchor())
                                 .setAction(R.string.song_bottom_sheet_undo, a -> pageViewModel.restoreSong(playlistId, song, itemPosition, new PlaylistRepository.PlaylistActionCallback() {
                                     @Override
                                     public void onSuccess() {
