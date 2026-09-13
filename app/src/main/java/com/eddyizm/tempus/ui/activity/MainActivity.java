@@ -64,6 +64,7 @@ import com.eddyizm.tempus.util.AssetLinkUtil;
 import com.eddyizm.tempus.util.Constants;
 import com.eddyizm.tempus.util.AlbumArtistBackfill;
 import com.eddyizm.tempus.util.DownloadRepair;
+import com.eddyizm.tempus.util.ConnectionUtil;
 import com.eddyizm.tempus.util.Preferences;
 import com.eddyizm.tempus.viewmodel.MainViewModel;
 import com.eddyizm.tempus.util.FavoriteRegistry;
@@ -582,14 +583,14 @@ public class MainActivity extends BaseActivity {
     private void pingServer() {
         if (Preferences.getToken() == null && Preferences.getPassword() == null) return;
 
-        Preferences.markPingIssued();
+        ConnectionUtil.markPingIssued();
 
         if (Preferences.isInUseServerAddressLocal()) {
             mainViewModel.ping().observe(this, subsonicResponse -> {
                 if (subsonicResponse == null) {
                     // onStart and onResume each ping, so two failures arrive for one unreachable
                     // address, and the toggle below would put the second one straight back on it.
-                    Preferences.markPingAnswered();
+                    ConnectionUtil.markPingAnswered();
                     if (!Preferences.isInUseServerAddressLocal()) return;
 
                     // Switching only helps when remote and local are different addresses. When
@@ -608,19 +609,19 @@ public class MainActivity extends BaseActivity {
                         dialog.show(getSupportFragmentManager(), null);
                     }
                 } else {
-                    Preferences.markPingAnswered();
+                    ConnectionUtil.markPingAnswered();
                     Preferences.setOpenSubsonic(subsonicResponse.getOpenSubsonic() != null && subsonicResponse.getOpenSubsonic());
                 }
             });
         } else {
             if (outstandingProbe != null) {
                 // A probe is deciding the address, and it falls back to this ping when none answers.
-                Preferences.markPingAnswered();
+                ConnectionUtil.markPingAnswered();
             } else if (Preferences.isServerSwitchable()) {
                 probeLocalAddress();
             } else {
                 mainViewModel.ping().observe(this, subsonicResponse -> {
-                    Preferences.markPingAnswered();
+                    ConnectionUtil.markPingAnswered();
                     if (subsonicResponse == null) {
                         // A local address answered since, so this failure is stale. It matters
                         // because one of the dialog's buttons clears the session and the queue.
@@ -656,7 +657,7 @@ public class MainActivity extends BaseActivity {
             if (!isCurrentProbe
                     || subsonicResponse == null
                     || !probedAddress.equals(Preferences.getLocalAddress())) {
-                Preferences.markPingAnswered();
+                ConnectionUtil.markPingAnswered();
 
                 // No local address answered, so ask the public one. The window is stamped first, or
                 // a probe slower than the window sends this call into another probe.
@@ -672,7 +673,7 @@ public class MainActivity extends BaseActivity {
 
             // Released only once the client points at the new address, or a mapping waking in
             // between reads the new address and the old client.
-            Preferences.markPingAnswered();
+            ConnectionUtil.markPingAnswered();
 
             // The screens were built against the address just left, so they are built again. The
             // old code did this on every switch, and this runs only when the probe succeeded.
