@@ -132,7 +132,7 @@ public class PlaylistPageViewModel extends AndroidViewModel {
         }
 
         boolean sorted = comparatorFor(currentSortOrder) != null;
-        int serverIndex = sorted ? serverIndexOf(songs.get(index)) : index;
+        int serverIndex = sorted ? serverIndexOf(serverOrder, songs.get(index)) : index;
         if (serverIndex < 0 || serverIndex >= serverOrder.size()) {
             callback.onFailure();
             return;
@@ -153,7 +153,7 @@ public class PlaylistPageViewModel extends AndroidViewModel {
                 // delete, which is dropped again here; any other list gets a fresh read, with
                 // the flag up until it lands.
                 List<Child> current = songLiveList.getValue();
-                int at = sameIds(current, songs) ? (sorted ? serverIndexOf(removed) : index) : -1;
+                int at = sameIds(current, songs) ? (sorted ? serverIndexOf(serverOrder, removed) : index) : -1;
                 if (current == shorter || playlist == null || !playlist.getId().equals(playlistId)) {
                     writingPlaylistId = null;
                 } else if (at >= 0) {
@@ -358,7 +358,7 @@ public class PlaylistPageViewModel extends AndroidViewModel {
      * is not in it. The row's position on screen is a different number once a sort is on, and
      * the server only takes a position in its own list.
      */
-    private int serverIndexOf(Child song) {
+    static int serverIndexOf(List<Child> serverOrder, Child song) {
         if (serverOrder == null || song == null || song.getId() == null) return -1;
         for (int i = 0; i < serverOrder.size(); i++) {
             if (song.getId().equals(serverOrder.get(i).getId())) return i;
