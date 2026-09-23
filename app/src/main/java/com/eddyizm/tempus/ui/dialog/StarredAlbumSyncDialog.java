@@ -60,7 +60,7 @@ public class StarredAlbumSyncDialog extends DialogFragment {
             positiveButton.setOnClickListener(v -> {
                 starredAlbumsSyncViewModel.getStarredAlbumSongs(requireActivity()).observe(this, allSongs -> {
                     if (allSongs != null && !allSongs.isEmpty()) {
-                        DownloadUtil.getDownloadTracker(context).download(allSongs, Download::new, null);
+                        DownloadUtil.getDownloadTracker(context).downloadMissing(allSongs, Download::new, null);
                     }
                     dialog.dismiss();
                 });

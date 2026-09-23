@@ -210,6 +210,8 @@ public class DownloaderManager {
     }
 
     public static void forgetRequest(Download download) {
+        // Replaces an entry loaded as queued at startup, which would otherwise still count as downloaded.
+        downloads.put(download.request.id, download);
         requested.remove(download.request.id);
     }
 
