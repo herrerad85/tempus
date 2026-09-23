@@ -40,7 +40,6 @@ import com.eddyizm.tempus.ui.dialog.DownloadDirectoryDialog;
 import com.eddyizm.tempus.util.Constants;
 import com.eddyizm.tempus.util.DownloadUtil;
 import com.eddyizm.tempus.util.ExternalAudioWriter;
-import com.eddyizm.tempus.util.MappingUtil;
 import com.eddyizm.tempus.util.Preferences;
 import com.eddyizm.tempus.viewmodel.DirectoryViewModel;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -126,10 +125,7 @@ public class DirectoryFragment extends Fragment implements ClickCallback {
                         if (isVisible() && getActivity() != null) {
                             List<Child> songs = directory.getChildren().stream().filter(child -> !child.isDir()).collect(Collectors.toList());
                             if (Preferences.getDownloadDirectoryUri() == null) {
-                                DownloadUtil.getDownloadTracker(requireContext()).download(
-                                        MappingUtil.mapDownloads(songs),
-                                        songs.stream().map(Download::new).collect(Collectors.toList())
-                                );
+                                DownloadUtil.getDownloadTracker(requireContext()).download(songs, Download::new, null);
                             } else {
                                 songs.forEach(child -> ExternalAudioWriter.downloadToUserDirectory(requireContext(), child));
                             }

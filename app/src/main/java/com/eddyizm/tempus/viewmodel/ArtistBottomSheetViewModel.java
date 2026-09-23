@@ -19,13 +19,11 @@ import com.eddyizm.tempus.subsonic.models.ArtistID3;
 import com.eddyizm.tempus.subsonic.models.Child;
 import com.eddyizm.tempus.util.NetworkUtil;
 import com.eddyizm.tempus.util.DownloadUtil;
-import com.eddyizm.tempus.util.MappingUtil;
 import com.eddyizm.tempus.util.Preferences;
 import com.eddyizm.tempus.util.FavoriteRegistry;
 
 import java.util.Collections;
 import java.util.Date;
-import java.util.stream.Collectors;
 import java.util.List;
 
 public class ArtistBottomSheetViewModel extends AndroidViewModel {
@@ -122,10 +120,7 @@ public class ArtistBottomSheetViewModel extends AndroidViewModel {
                     Log.d("ArtistSync", "Callback triggered with songs: " + (songs != null ? songs.size() : 0));
                     if (songs != null && !songs.isEmpty()) {
                         Log.d("ArtistSync", "Starting download of " + songs.size() + " songs");
-                        DownloadUtil.getDownloadTracker(context).download(
-                                MappingUtil.mapDownloads(songs),
-                                songs.stream().map(Download::new).collect(Collectors.toList())
-                        );
+                        DownloadUtil.getDownloadTracker(context).download(songs, Download::new, null);
                         Log.d("ArtistSync", "Download started successfully");
                     } else {
                         Log.d("ArtistSync", "No songs to download");

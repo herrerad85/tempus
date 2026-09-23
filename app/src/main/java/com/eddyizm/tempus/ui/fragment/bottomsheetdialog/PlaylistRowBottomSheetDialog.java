@@ -28,7 +28,6 @@ import com.eddyizm.tempus.util.Constants;
 import com.eddyizm.tempus.util.DownloadUtil;
 import com.eddyizm.tempus.util.ExternalAudioWriter;
 import com.eddyizm.tempus.util.LiveDataUtils;
-import com.eddyizm.tempus.util.MappingUtil;
 import com.eddyizm.tempus.util.MusicUtil;
 import com.eddyizm.tempus.util.Preferences;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
@@ -38,7 +37,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 @UnstableApi
 public class PlaylistRowBottomSheetDialog extends BottomSheetDialogFragment {
@@ -99,15 +97,12 @@ public class PlaylistRowBottomSheetDialog extends BottomSheetDialogFragment {
 
         view.findViewById(R.id.download_all_row).setOnClickListener(v -> withSongs((activity, songs) -> {
             if (Preferences.getDownloadDirectoryUri() == null) {
-                DownloadUtil.getDownloadTracker(activity).download(
-                        MappingUtil.mapDownloads(songs),
-                        songs.stream().map(child -> {
-                            Download toDownload = new Download(child);
-                            toDownload.setPlaylistId(playlist.getId());
-                            toDownload.setPlaylistName(playlist.getName());
-                            return toDownload;
-                        }).collect(Collectors.toList())
-                );
+                DownloadUtil.getDownloadTracker(activity).download(songs, child -> {
+                    Download toDownload = new Download(child);
+                    toDownload.setPlaylistId(playlist.getId());
+                    toDownload.setPlaylistName(playlist.getName());
+                    return toDownload;
+                }, null);
             } else {
                 songs.forEach(child -> ExternalAudioWriter.downloadToUserDirectory(activity, child, playlist.getId(), playlist.getName()));
             }

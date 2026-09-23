@@ -19,8 +19,6 @@ import androidx.media3.datasource.cache.CacheDataSource;
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor;
 import androidx.media3.datasource.cache.NoOpCacheEvictor;
 import androidx.media3.datasource.cache.SimpleCache;
-import androidx.media3.exoplayer.DefaultRenderersFactory;
-import androidx.media3.exoplayer.RenderersFactory;
 import androidx.media3.exoplayer.offline.DownloadManager;
 import androidx.media3.exoplayer.offline.DownloadNotificationHelper;
 import androidx.media3.exoplayer.scheduler.Requirements;
@@ -65,15 +63,6 @@ public final class DownloadUtil {
 
     public static boolean useExtensionRenderers() {
         return true;
-    }
-
-    public static RenderersFactory buildRenderersFactory(Context context, boolean preferExtensionRenderer) {
-        @DefaultRenderersFactory.ExtensionRendererMode int extensionRendererMode =
-                useExtensionRenderers()
-                        ? (preferExtensionRenderer ? DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-                        : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF;
-
-        return new DefaultRenderersFactory(context.getApplicationContext()).setExtensionRendererMode(extensionRendererMode);
     }
 
     public static synchronized DataSource.Factory getHttpDataSourceFactory() {
@@ -318,20 +307,12 @@ public final class DownloadUtil {
         Handler main = new Handler(Looper.getMainLooper());
 
         if (Preferences.getDownloadDirectoryUri() == null) {
-            DownloaderManager manager = getDownloadTracker(context);
-            List<Child> missing = byId.values().stream()
-                    .filter(song -> !manager.isDownloaded(song.getId()) && !manager.isRequested(song.getId()))
-                    .collect(Collectors.toList());
-            int sent = manager.download(
-                    MappingUtil.mapDownloads(missing),
-                    missing.stream().map(child -> {
-                        Download toDownload = new Download(child);
-                        toDownload.setPlaylistId(playlistId);
-                        toDownload.setPlaylistName(playlistName);
-                        return toDownload;
-                    }).collect(Collectors.toList())
-            );
-            onQueued.accept(sent == 0 && !missing.isEmpty() ? -1 : sent);
+            getDownloadTracker(context).downloadMissing(new ArrayList<>(byId.values()), child -> {
+                Download toDownload = new Download(child);
+                toDownload.setPlaylistId(playlistId);
+                toDownload.setPlaylistName(playlistName);
+                return toDownload;
+            }, onQueued);
         } else {
             // The folder index only builds off main. While a rebuild runs it is empty and every track reads as
             // missing, and the writer's own size check is what keeps a file already there from being written again.

@@ -23,7 +23,6 @@ import com.eddyizm.tempus.subsonic.models.ArtistID3;
 import com.eddyizm.tempus.subsonic.models.Child;
 import com.eddyizm.tempus.subsonic.models.Share;
 import com.eddyizm.tempus.util.DownloadUtil;
-import com.eddyizm.tempus.util.MappingUtil;
 import com.eddyizm.tempus.util.NetworkUtil;
 import com.eddyizm.tempus.util.Preferences;
 import com.eddyizm.tempus.util.FavoriteRegistry;
@@ -31,7 +30,6 @@ import com.eddyizm.tempus.util.FavoriteRegistry;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class AlbumBottomSheetViewModel extends AndroidViewModel {
     private final AlbumRepository albumRepository;
@@ -125,10 +123,7 @@ public class AlbumBottomSheetViewModel extends AndroidViewModel {
                     @Override
                     public void onChanged(List<Child> songs) {
                         if (songs != null && !songs.isEmpty()) {
-                            DownloadUtil.getDownloadTracker(context).download(
-                                    MappingUtil.mapDownloads(songs),
-                                    songs.stream().map(Download::new).collect(Collectors.toList())
-                            );
+                            DownloadUtil.getDownloadTracker(context).download(songs, Download::new, null);
                         }
                         tracksLiveData.removeObserver(this);
                     }

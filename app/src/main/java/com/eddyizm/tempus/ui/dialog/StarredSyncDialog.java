@@ -15,12 +15,10 @@ import com.eddyizm.tempus.R;
 import com.eddyizm.tempus.databinding.DialogStarredSyncBinding;
 import com.eddyizm.tempus.model.Download;
 import com.eddyizm.tempus.util.DownloadUtil;
-import com.eddyizm.tempus.util.MappingUtil;
 import com.eddyizm.tempus.util.Preferences;
 import com.eddyizm.tempus.viewmodel.StarredSyncViewModel;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
-import java.util.stream.Collectors;
 
 @OptIn(markerClass = UnstableApi.class)
 public class StarredSyncDialog extends DialogFragment {
@@ -62,10 +60,7 @@ public class StarredSyncDialog extends DialogFragment {
             positiveButton.setOnClickListener(v -> {
                 starredSyncViewModel.getStarredTracks(requireActivity()).observe(requireActivity(), songs -> {
                     if (songs != null && Preferences.getDownloadDirectoryUri() == null) {
-                        DownloadUtil.getDownloadTracker(context).download(
-                                MappingUtil.mapDownloads(songs),
-                                songs.stream().map(Download::new).collect(Collectors.toList())
-                        );
+                        DownloadUtil.getDownloadTracker(context).download(songs, Download::new, null);
                     }
 
                     dialog.dismiss();

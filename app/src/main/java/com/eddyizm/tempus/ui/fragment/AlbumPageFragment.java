@@ -41,7 +41,6 @@ import com.eddyizm.tempus.ui.dialog.RatingDialog;
 import com.eddyizm.tempus.util.AssetLinkUtil;
 import com.eddyizm.tempus.util.Constants;
 import com.eddyizm.tempus.util.DownloadUtil;
-import com.eddyizm.tempus.util.MappingUtil;
 import com.eddyizm.tempus.util.MusicUtil;
 import com.eddyizm.tempus.util.ExternalAudioWriter;
 import com.eddyizm.tempus.util.Preferences;
@@ -53,7 +52,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 @UnstableApi
 public class AlbumPageFragment extends Fragment implements ClickCallback {
@@ -155,10 +153,7 @@ public class AlbumPageFragment extends Fragment implements ClickCallback {
         if (item.getItemId() == R.id.action_download_album) {
             albumPageViewModel.getAlbumSongLiveList().observe(getViewLifecycleOwner(), songs -> {
                 if (Preferences.getDownloadDirectoryUri() == null) {
-                    DownloadUtil.getDownloadTracker(requireContext()).download(
-                        MappingUtil.mapDownloads(songs),
-                        songs.stream().map(Download::new).collect(Collectors.toList())
-                    );
+                    DownloadUtil.getDownloadTracker(requireContext()).download(songs, Download::new, null);
                 } else {
                     songs.forEach(child -> ExternalAudioWriter.downloadToUserDirectory(requireContext(), child));
                 }

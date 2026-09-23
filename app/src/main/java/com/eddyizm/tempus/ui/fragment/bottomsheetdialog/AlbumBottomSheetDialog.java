@@ -182,12 +182,9 @@ public class AlbumBottomSheetDialog extends BottomSheetDialogFragment implements
 
         TextView downloadAll = view.findViewById(R.id.download_all_text_view);
         albumBottomSheetViewModel.getAlbumTracks().observe(getViewLifecycleOwner(), songs -> {
-            List<MediaItem> mediaItems = MappingUtil.mapDownloads(songs);
-            List<Download> downloads = songs.stream().map(Download::new).collect(Collectors.toList());
-
             downloadAll.setOnClickListener(v -> {
                 if (Preferences.getDownloadDirectoryUri() == null) {
-                    DownloadUtil.getDownloadTracker(requireContext()).download(mediaItems, downloads);
+                    DownloadUtil.getDownloadTracker(requireContext()).download(songs, Download::new, null);
                 } else {
                     songs.forEach(child -> ExternalAudioWriter.downloadToUserDirectory(requireContext(), child));
                 }

@@ -23,7 +23,6 @@ import com.eddyizm.tempus.subsonic.models.ArtistID3;
 import com.eddyizm.tempus.subsonic.models.ArtistInfo2;
 import com.eddyizm.tempus.subsonic.models.Child;
 import com.eddyizm.tempus.util.DownloadUtil;
-import com.eddyizm.tempus.util.MappingUtil;
 import com.eddyizm.tempus.util.NetworkUtil;
 import com.eddyizm.tempus.util.Preferences;
 import com.eddyizm.tempus.util.FavoriteRegistry;
@@ -197,10 +196,7 @@ public class ArtistPageViewModel extends AndroidViewModel {
                 @Override
                 public void onSongsCollected(List<Child> songs) {
                     if (songs != null && !songs.isEmpty()) {
-                        DownloadUtil.getDownloadTracker(context).download(
-                                MappingUtil.mapDownloads(songs),
-                                songs.stream().map(Download::new).collect(Collectors.toList())
-                        );
+                        DownloadUtil.getDownloadTracker(context).download(songs, Download::new, null);
                     }
                 }
             });
