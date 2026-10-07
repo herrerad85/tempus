@@ -63,10 +63,27 @@ public class AlbumArtContentProvider extends ContentProvider {
             // (SystemUI media controls, Android Auto) cannot open directly. Reading it here in the
             // provider's own process and piping the bytes makes it accessible cross-process.
             localFile = RadioCoverArtDownloader.getLocalCoverFile(albumId.substring("rl_".length()));
+            File coverDir = RadioCoverArtDownloader.getCoverDir();
+            String canonicalFile;
+            String canonicalDir;
+            try {
+                canonicalFile = localFile.getCanonicalPath();
+                canonicalDir = coverDir.getCanonicalPath();
+            } catch (IOException e) {
+                throw new FileNotFoundException("Could not resolve cover art path");
+            }
+            if (!canonicalFile.startsWith(canonicalDir + File.separator)) {
+                throw new FileNotFoundException("Cover art outside cover directory");
+            }
         } else if (albumId != null && albumId.startsWith("ir_")) {
             String encodedUrl = albumId.substring("ir_".length());
             String decodedUrl = new String(Base64.decode(encodedUrl, Base64.URL_SAFE | Base64.NO_WRAP));
-            artworkUri = Uri.parse(decodedUrl);
+            Uri candidate = Uri.parse(decodedUrl);
+            String scheme = candidate.getScheme();
+            if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
+                throw new FileNotFoundException("Unsupported scheme for remote cover art");
+            }
+            artworkUri = candidate;
         } else {
             artworkUri = Uri.parse(CustomGlideRequest.createUrl(albumId, Preferences.getImageSize()));
         }
