@@ -1,6 +1,7 @@
 package com.eddyizm.tempus.util
 
 import android.os.SystemClock
+import com.eddyizm.tempus.App
 import java.util.concurrent.atomic.AtomicInteger
 
 object ConnectionUtil {
@@ -23,6 +24,9 @@ object ConnectionUtil {
     fun endPingDeferral() {
         pingDeferredUntil = 0L
     }
+
+    @JvmStatic
+    fun isPingDeferred(): Boolean = pingDeferredUntil == Long.MAX_VALUE
 
     @JvmStatic
     fun expirePingDeferral() {
@@ -61,5 +65,24 @@ object ConnectionUtil {
         if (base.isEmpty() || !url.startsWith(base)) return false
 
         return url.length == base.length || url[base.length] == '/'
+    }
+
+    @JvmStatic
+    fun moveToAddress(url: String, addresses: List<String?>, inUse: String?): String {
+        if (inUse.isNullOrEmpty()) return url
+
+        val base = (addresses + inUse)
+            .filter { isUnderAddress(url, it) }
+            .map { it!!.trimEnd('/') }
+            .maxByOrNull { it.length } ?: return url
+        val target = inUse.trimEnd('/')
+
+        return if (base == target) url else target + url.substring(base.length)
+    }
+
+    @JvmStatic
+    fun useServerAddress(address: String?) {
+        Preferences.setInUseServerAddress(address)
+        App.refreshSubsonicClient()
     }
 }

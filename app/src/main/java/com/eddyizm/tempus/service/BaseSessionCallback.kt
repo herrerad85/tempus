@@ -214,6 +214,18 @@ open class BaseSessionCallback(
     // ─────────────────────────────────────────────────────────────
 
     @OptIn(UnstableApi::class)
+    override fun onPlayerInteractionFinished(
+        session: MediaSession,
+        controllerInfo: MediaSession.ControllerInfo,
+        playerCommands: Player.Commands
+    ) {
+        // Media3 reports a stop and a play from one looper turn together, so only a player still idle stays stopped.
+        if (playerCommands.contains(Player.COMMAND_STOP) && session.player.playbackState == Player.STATE_IDLE) {
+            service.stoppedSinceError = true
+        }
+    }
+
+    @OptIn(UnstableApi::class)
     override fun onConnect(
         session: MediaSession,
         controller: MediaSession.ControllerInfo

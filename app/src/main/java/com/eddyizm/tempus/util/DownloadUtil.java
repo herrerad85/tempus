@@ -2,8 +2,10 @@ package com.eddyizm.tempus.util;
 
 import android.app.Notification;
 import android.content.Context;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 import androidx.media3.common.util.UnstableApi;
@@ -35,6 +37,7 @@ import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,6 +51,8 @@ import okhttp3.OkHttpClient;
 
 @UnstableApi
 public final class DownloadUtil {
+
+    private static final String TAG = "DownloadUtil";
 
     public static final String DOWNLOAD_NOTIFICATION_CHANNEL_ID = "download_channel";
     public static final String DOWNLOAD_NOTIFICATION_SUCCESSFUL_GROUP = "com.eddyizm.tempus.SuccessfulDownload";
@@ -90,10 +95,19 @@ public final class DownloadUtil {
                     .setAllowCrossProtocolRedirects(true);
             // Requests to the signed-in server that need its custom headers go through OkHttp,
             // which re-checks the host on every redirect; see CustomHeadersDataSource.
-            httpDataSourceFactory = new CustomHeadersDataSource.Factory(
+            DataSource.Factory headersFactory = new CustomHeadersDataSource.Factory(
                     serverHttpFactory,
                     new OkHttpDataSource.Factory(buildCustomHeadersHttpClient()),
                     url -> !ServerHeaders.getHeadersForActiveServer(url).isEmpty());
+            httpDataSourceFactory = new ResolvingDataSource.Factory(headersFactory, dataSpec -> {
+                String url = dataSpec.uri.toString();
+                String moved = ConnectionUtil.moveToAddress(url,
+                        Arrays.asList(Preferences.getLocalAddress(), Preferences.getServer()),
+                        Preferences.getInUseServerAddress());
+                if (moved.equals(url)) return dataSpec;
+                Log.d(TAG, "Stream moved onto the in use server address");
+                return dataSpec.withUri(Uri.parse(moved));
+            });
         }
 
         return httpDataSourceFactory;

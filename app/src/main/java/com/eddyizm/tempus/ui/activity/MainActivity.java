@@ -40,7 +40,6 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
 
-import com.eddyizm.tempus.App;
 import com.eddyizm.tempus.BuildConfig;
 import com.eddyizm.tempus.R;
 import com.eddyizm.tempus.broadcast.receiver.ConnectivityStatusBroadcastReceiver;
@@ -617,20 +616,17 @@ public class MainActivity extends BaseActivity {
         if (Preferences.isInUseServerAddressLocal()) {
             mainViewModel.ping().observe(this, subsonicResponse -> {
                 if (subsonicResponse == null) {
-                    // onStart and onResume each ping, so two failures arrive for one unreachable
-                    // address, and the toggle below would put the second one straight back on it.
                     ConnectionUtil.markPingAnswered();
                     if (!Preferences.isInUseServerAddressLocal()) return;
 
                     // Switching only helps when remote and local are different addresses. When
-                    // they're equal (issue #242) switchInUseServerAddress() is a no-op, so we'd
+                    // they're equal (issue #242) the switch is a no-op, so we'd
                     // re-enter this branch forever (ping/refresh/resetView loop). Treat that case
                     // like an unreachable server instead of looping.
                     String server = Preferences.getServer();
                     if (server != null && !server.equals(Preferences.getLocalAddress())) {
                         Preferences.setServerSwitchableTimer();
-                        Preferences.switchInUseServerAddress();
-                        App.refreshSubsonicClient();
+                        ConnectionUtil.useServerAddress(server);
                         pingServer();
                         resetView();
                     } else if (Preferences.showServerUnreachableDialog()) {
@@ -697,8 +693,7 @@ public class MainActivity extends BaseActivity {
                 return;
             }
 
-            Preferences.setInUseServerAddress(probedAddress);
-            App.refreshSubsonicClient();
+            ConnectionUtil.useServerAddress(probedAddress);
 
             // Released only once the client points at the new address, or a mapping waking in
             // between reads the new address and the old client.

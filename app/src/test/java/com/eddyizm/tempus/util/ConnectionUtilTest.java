@@ -1,7 +1,12 @@
 package com.eddyizm.tempus.util;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+
+import java.util.Arrays;
+import java.util.List;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -44,5 +49,69 @@ public class ConnectionUtilTest {
         assertFalse(ConnectionUtil.isUnderAddress("http://nas/rest/ping", null));
         assertFalse(ConnectionUtil.isUnderAddress("http://nas/rest/ping", ""));
         assertFalse(ConnectionUtil.isUnderAddress(null, "http://nas"));
+    }
+
+    private static final String LOCAL = "http://192.168.0.10:4533";
+    private static final String PUBLIC = "https://music.example.invalid/navidrome";
+    private static final List<String> ADDRESSES = Arrays.asList(LOCAL, PUBLIC);
+
+    @Test
+    public void movesALocalStreamOntoThePublicAddress() {
+        assertEquals(PUBLIC + "/rest/stream?u=a&id=1",
+                ConnectionUtil.moveToAddress(LOCAL + "/rest/stream?u=a&id=1", ADDRESSES, PUBLIC));
+    }
+
+    @Test
+    public void movesAPublicStreamOntoTheLocalAddress() {
+        assertEquals(LOCAL + "/rest/stream?id=1",
+                ConnectionUtil.moveToAddress(PUBLIC + "/rest/stream?id=1", ADDRESSES, LOCAL + "/"));
+    }
+
+    @Test
+    public void leavesAStreamAlreadyOnTheAddressInUse() {
+        String url = PUBLIC + "/rest/stream?id=1";
+        assertSame(url, ConnectionUtil.moveToAddress(url, ADDRESSES, PUBLIC));
+    }
+
+    @Test
+    public void leavesAnUrlOnNeitherAddress() {
+        String url = "https://radio.example.invalid/stream";
+        assertSame(url, ConnectionUtil.moveToAddress(url, ADDRESSES, PUBLIC));
+        assertSame(url, ConnectionUtil.moveToAddress(url, ADDRESSES, null));
+    }
+
+    @Test
+    public void leavesAnUrlThatOnlySharesAPrefixWithAnAddress() {
+        String url = "http://nas2/rest/stream?id=1";
+        assertSame(url, ConnectionUtil.moveToAddress(url, Arrays.asList("http://nas", PUBLIC), PUBLIC));
+    }
+
+    @Test
+    public void movesAStreamUnderAnAddressSavedWithATrailingSlash() {
+        assertEquals(PUBLIC + "/rest/stream?id=1", ConnectionUtil.moveToAddress(
+                LOCAL + "/rest/stream?id=1", Arrays.asList(LOCAL + "/", PUBLIC), PUBLIC));
+    }
+
+    @Test
+    public void skipsAnAddressThatIsNotSet() {
+        String url = PUBLIC + "/rest/stream?id=1";
+        assertSame(url, ConnectionUtil.moveToAddress(url, Arrays.asList(null, PUBLIC), PUBLIC));
+    }
+
+    @Test
+    public void picksTheLongestAddressAUrlIsUnder() {
+        String local = "https://example.invalid";
+        String nested = "https://example.invalid/navidrome";
+        assertEquals(local + "/rest/stream?id=1", ConnectionUtil.moveToAddress(
+                nested + "/rest/stream?id=1", Arrays.asList(local, nested), local));
+        assertEquals(local + "/rest/stream?id=1", ConnectionUtil.moveToAddress(
+                nested + "/rest/stream?id=1", Arrays.asList(nested, local), local));
+    }
+
+    @Test
+    public void leavesAnUrlAlreadyUnderANestedInUseAddress() {
+        String url = "https://example.invalid/navidrome/rest/stream?id=1";
+        assertSame(url, ConnectionUtil.moveToAddress(url,
+                Arrays.asList("https://example.invalid", "https://example.invalid/navidrome"), "https://example.invalid/navidrome"));
     }
 }
