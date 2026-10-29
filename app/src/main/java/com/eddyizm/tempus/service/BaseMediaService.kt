@@ -5,7 +5,6 @@ import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.app.PendingIntent.FLAG_UPDATE_CURRENT
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -39,15 +38,12 @@ import com.eddyizm.tempus.equalizer.ExternalBackend
 import com.eddyizm.tempus.equalizer.DefaultBackend
 import com.eddyizm.tempus.equalizer.ParametricBackend
 import com.eddyizm.tempus.equalizer.ParametricEqAudioProcessor
-import androidx.mediarouter.media.MediaRouter
+import com.eddyizm.tempus.output.OutputManager
+import com.eddyizm.tempus.output.PlaybackOutput
 import com.eddyizm.tempus.repository.QueueRepository
 import com.eddyizm.tempus.subsonic.base.ApiResponse
 import com.eddyizm.tempus.subsonic.utils.CacheUtil
-import com.eddyizm.tempus.upnp.UpnpControlPoint
-import com.eddyizm.tempus.upnp.UpnpDevice
-import com.eddyizm.tempus.upnp.UpnpPlayer
-import com.eddyizm.tempus.upnp.UpnpRouteProvider
-import com.eddyizm.tempus.upnp.UpnpRoutesGate
+import com.eddyizm.tempus.upnp.UpnpOutput
 import com.eddyizm.tempus.ui.activity.MainActivity
 import com.eddyizm.tempus.util.*
 import com.eddyizm.tempus.util.SleepTimerManager
@@ -83,11 +79,10 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
     protected lateinit var exoplayer: ExoPlayer
     protected lateinit var mediaLibrarySession: MediaLibrarySession
     protected var sessionCallback: MediaLibrarySession.Callback? = null
-    private var upnpRouteProvider: UpnpRouteProvider? = null
-    private var upnpPlayer: UpnpPlayer? = null
     private lateinit var bitmapLoader: SyncBitmapLoader
     private lateinit var networkCallback: CustomNetworkCallback
     private lateinit var equalizerManager: EqualizerManager
+    private lateinit var outputManager: OutputManager
     private val parametricEqProcessor = ParametricEqAudioProcessor()
     private val widgetUpdateHandler = Handler(Looper.getMainLooper())
     private var widgetUpdateScheduled = false
@@ -148,7 +143,6 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
         initializeMediaLibrarySession(exoplayer)
         initializePlayerListener(exoplayer)
         initializeSleepTimer()
-        setPlayer(null, exoplayer)
     }
 
     open fun getMediaLibrarySessionCallback(): MediaLibrarySession.Callback {
@@ -770,93 +764,23 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
         }
     }
 
-    fun setPlayer(oldPlayer: Player?, newPlayer: Player) {
-        if (oldPlayer === newPlayer) return
-        if (oldPlayer != null) {
-            val currentQueue = getQueueFromPlayer(oldPlayer)
-            val currentIndex = oldPlayer.currentMediaItemIndex
-            val currentPosition = oldPlayer.currentPosition
-            val isPlaying = oldPlayer.playWhenReady
-            oldPlayer.stop()
-            newPlayer.setMediaItems(currentQueue, currentIndex, currentPosition)
-            newPlayer.playWhenReady = isPlaying
-            newPlayer.prepare()
-        }
-        mediaLibrarySession.player = newPlayer
-        (sessionCallback as? BaseSessionCallback)?.handlePlayerChanged(oldPlayer, newPlayer)
-    }
+    open fun buildOutputs(): List<PlaybackOutput> = listOf(UpnpOutput(this, ::initializePlayerListener))
 
-    /** Offers renderers as routes and moves playback onto one through [setPlayer], as Cast does. */
-    private fun initializeUpnpRoutes() {
-        val controlPoint = upnpControlPoint
-        val provider = UpnpRouteProvider(this, controlPoint)
-        provider.selectionListener = object : UpnpRouteProvider.SelectionListener {
-            override fun onRendererSelected(device: UpnpDevice) {
-                val previous = upnpPlayer
-                val player = UpnpPlayer(controlPoint, device, mainLooper, context = this@BaseMediaService)
-                upnpPlayer = player
-                initializePlayerListener(player)
-                setPlayer(mediaLibrarySession.player, player)
-                // The unselect that follows names the old renderer, so it is released here.
-                previous?.release()
+    private fun initializeOutputs() {
+        outputManager = OutputManager(exoplayer, object : OutputManager.Session {
+            override var player: Player
+                get() = mediaLibrarySession.player
+                set(value) { mediaLibrarySession.player = value }
+
+            override fun onPlayerChanged(oldPlayer: Player, newPlayer: Player) {
+                (sessionCallback as? BaseSessionCallback)?.handlePlayerChanged(oldPlayer, newPlayer)
             }
-
-            override fun onRendererUnselected(device: UpnpDevice) {
-                val player = upnpPlayer ?: return
-                if (player.device != device) return
-                upnpPlayer = null
-                setPlayer(player, exoplayer)
-                // Paused, as when Bluetooth headphones drop, so ending the cast does not start the phone's speaker.
-                exoplayer.playWhenReady = false
-                player.release()
-            }
-        }
-        MediaRouter.getInstance(this).addProvider(provider)
-        upnpRouteProvider = provider
-    }
-
-    // One per service, so turning the UPnP switch off and on again does not leave an HTTP client behind each time.
-    private val upnpControlPoint by lazy { UpnpControlPoint() }
-
-    // The UPnP switch is read at start and on every change, so turning it off takes effect without a restart.
-    private val upnpSwitchListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == Preferences.UPNP_ENABLED) applyUpnpSwitch()
-    }
-
-    private fun applyUpnpSwitch() {
-        when (UpnpRoutesGate.change(Preferences.isUpnpEnabled(), upnpRouteProvider != null)) {
-            UpnpRoutesGate.Change.REGISTER -> initializeUpnpRoutes()
-            UpnpRoutesGate.Change.RELEASE -> {
-                // Bring playback home first, or the renderer keeps playing with nothing left to control it.
-                // Paused there, since a settings switch should not start the phone's speaker by itself.
-                upnpPlayer?.let {
-                    setPlayer(it, exoplayer)
-                    exoplayer.playWhenReady = false
-                }
-                releaseUpnpRoutes()
-            }
-            UpnpRoutesGate.Change.NONE -> Unit
-        }
-    }
-
-    private fun releaseUpnpRoutes() {
-        upnpRouteProvider?.let { provider ->
-            provider.selectionListener = null
-            MediaRouter.getInstance(this).removeProvider(provider)
-            provider.release()
-        }
-        upnpRouteProvider = null
-        // Left playing on the renderer otherwise, with nothing left to control it.
-        upnpPlayer?.release()
-        upnpPlayer = null
+        })
+        buildOutputs().forEach(outputManager::register)
     }
 
     open fun releasePlayers() {
         exoplayer.release()
-    }
-
-    fun getQueueFromPlayer(player: Player): List<MediaItem> {
-        return (0..player.mediaItemCount - 1).map(player::getMediaItemAt)
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -879,8 +803,7 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
         playerInitHook()
         initializeEqualizer()
         initializeNetworkListener()
-        applyUpnpSwitch()
-        App.getInstance().preferences.registerOnSharedPreferenceChangeListener(upnpSwitchListener)
+        initializeOutputs()
         restorePlayerFromQueue(mediaLibrarySession.player)
     }
 
@@ -904,8 +827,7 @@ open class BaseMediaService : MediaLibraryService(), MediaManager.QueueTarget {
         SleepTimerManager.getInstance().setServiceActionListener(null)
         radioHeaderCheckExecutor.shutdown()
         if (::bitmapLoader.isInitialized) bitmapLoader.shutdown()
-        App.getInstance().preferences.unregisterOnSharedPreferenceChangeListener(upnpSwitchListener)
-        releaseUpnpRoutes()
+        outputManager.release()
         releasePlayers()
         mediaLibrarySession.release()
         super.onDestroy()
