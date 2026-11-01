@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="devices_title">Devices</string>
+    <string name="devices_network">Speakers and TVs</string>
+    <string name="devices_tempus">Tempus players</string>
+    <string name="devices_none">Nothing found yet</string>
+    <string name="devices_searching">Searching for devices</string>
+    <string name="devices_pair_settings">Remote player settings</string>
+    <string name="devices_playing_on_this_device">Playing on this device</string>
+</resources>

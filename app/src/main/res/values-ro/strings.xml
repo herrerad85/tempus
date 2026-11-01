@@ -187,7 +187,6 @@
     <string name="login_empty">Niciun server adăugat</string>
     <string name="login_title">Servere Subsonic</string>
     <string name="login_title_expanded">Servere Subsonic</string>
-    <string name="media_route_menu_title">Cast</string>
     <string name="menu_add_to_playlist_button">Adăugați la playlist</string>
     <string name="menu_download_all_button">Descărcați tot</string>
     <string name="menu_rate_album">Evaluați albumul</string>

@@ -1,11 +1,9 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="lan_title">Zdalny odtwarzacz</string>
-    <string name="lan_choose_device">Wybierz zdalny odtwarzacz</string>
     <string name="lan_searching">Znajdowanie odtwarzaczy…</string>
     <string name="lan_connecting">Łączenie…</string>
     <string name="lan_reconnecting">Ponowne łączenie… Odtwarzanie jest kontynuowane na odbiorniku.</string>
     <string name="lan_release_control">Zwolnij zdalne sterowanie</string>
-    <string name="lan_controlling">%1$s · Zwolnij sterowanie</string>
     <string name="lan_operating_on">Odtwarzanie na %1$s</string>
     <string name="lan_receiver_audio_settings">Skonfiguruj efekty dźwięku na telefonie odbierającym.</string>
     <string name="lan_remote_active">Zdalne sterowanie</string>

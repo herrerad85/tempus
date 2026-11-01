@@ -20,6 +20,7 @@ interface PlaybackOutput {
 
     interface Listener {
         fun onConnected(output: PlaybackOutput, player: Player)
-        fun onDropped(output: PlaybackOutput, player: Player)
+        fun onDropped(output: PlaybackOutput, player: Player, switching: Boolean)
+        fun onConnectFailed(output: PlaybackOutput)
     }
 }

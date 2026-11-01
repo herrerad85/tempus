@@ -203,8 +203,9 @@ Tap the artwork to show four buttons over it, and tap again to hide them.
 3. Adds this track again, followed by songs similar to it, right after the current track (Instant Mix). It uses [getSimilarSongs](https://opensubsonic.netlify.app/docs/endpoints/getsimilarsongs/) of the OpenSubsonic API, so which songs you get depends on your server. For example, Navidrome gets 15 similar artists from Last.fm, then 20 top songs from each.
 4. Opens the lyrics.
 
-Below the playback controls is a row of three buttons.
+Below the playback controls is a row of buttons.
 
+- **Devices** lets you pick where the music plays, see [Playing on another device](#playing-on-another-device). While it plays on a network speaker, a TV or another phone, that device's name shows under the button.
 - **Sleep timer** stops playback after 5 to 60 minutes, after a number of minutes you type in, or at the end of the current track. The volume fades out before playback pauses. While a timer is set, the time left shows under the button, and tapping it again lets you cancel.
 - **Lyrics** slides over to the lyrics. Tap it again or swipe back to return.
 - **Queue** opens the queue.
@@ -290,11 +291,14 @@ The spot is also saved as a bookmark on your server, if the server supports book
 
 ## Playing on another device
 
-Tempus can hand playback to a UPnP or DLNA renderer on your network, such as a TV, an AV receiver or a network speaker. Tap the cast button in the toolbar, pick the device, and the queue, the position and the play state move to it while the app keeps the controls. On the GitHub build the same button lists Chromecast devices and network renderers together. On the degoogled build the button shows a speaker icon, not the Cast icon.
+Tempus can hand playback to a UPnP or DLNA renderer on your network, such as a TV, an AV receiver or a network speaker. Tap **Devices** in the toolbar or at the bottom of the expanded player and pick the device. The queue moves to it with the position and the play state while the app keeps the controls. On the GitHub build Chromecast devices are listed with the network renderers under **Speakers and TVs**.
 
 <p align="left">
     <img src="mockup/usage/toolbar_github.png" width=400 style="margin-right:16px;">
     <img src="mockup/usage/toolbar_degoogled.png" width=400>
+</p>
+<p align="left">
+    <img src="mockup/usage/player_devices.png" width=400>
 </p>
 
 The renderer fetches the music from your server itself. Nothing is streamed through the phone, which is how the protocol works. Downloaded tracks are played from your server too, because the renderer cannot reach what is stored on the phone.
@@ -328,11 +332,11 @@ A paired controller does not need pairing opened again. To remove one, tap it un
 
 **Playing on the receiver**
 
-Tap the device icon on the mini player, or **Play on…** in the expanded player or its overflow menu, and pick the receiver. The normal player then shows **Playing on** and the receiver's name, and its playback controls, shuffle, repeat, speed, seeking from the lyrics and the sleep timer all act on the receiver. The volume keys change the receiver's volume. With the screen off or Tempus in the background, that works only while Android keeps Tempus running and sends the keys to it. Audio effects are set on the receiver itself.
+Tap **Devices** in the toolbar or the expanded player, or **Play on…** in the player's overflow menu, and pick the receiver under **Tempus players**. The Devices button in the normal player then shows the receiver's name under it, and the player's playback controls, shuffle, repeat, speed, seeking from the lyrics and the sleep timer all act on the receiver. The volume keys change the receiver's volume. With the screen off or Tempus in the background, that works only while Android keeps Tempus running and sends the keys to it. Audio effects are set on the receiver itself.
 
 While a receiver is selected, **Play**, **Add to queue** and **Play next** in the library send music to it, albums and playlists included. Adding to an empty receiver queue loads it without starting playback. **Queue** shows the receiver's queue, where you can tap to play or pause, swipe to remove, drag to reorder, and use the menu to shuffle or clear the upcoming tracks, or save the whole queue as a playlist. The controller's own queue is left as it was.
 
-Tap the device button again to go back. The receiver keeps playing, and the controller does not start playing on its own.
+To go back, open **Devices** and tap **This device**. The receiver keeps playing, and the controller does not start playing on its own.
 
 **Limits**
 

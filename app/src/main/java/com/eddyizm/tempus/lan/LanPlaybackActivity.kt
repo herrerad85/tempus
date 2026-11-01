@@ -18,7 +18,6 @@ class LanPlaybackActivity : AppCompatActivity() {
         ThemeHelper.enableThemeSwitch(this)
         setUpEdgeToEdge()
         super.onCreate(savedInstanceState)
-        // Reachable from a stale notification or the picker's pair button; nothing to show while the switch is off.
         if (!Preferences.isLanRemoteEnabled()) {
             finish()
             return

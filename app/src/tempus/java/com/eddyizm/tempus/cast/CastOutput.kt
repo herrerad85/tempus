@@ -8,6 +8,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import com.eddyizm.tempus.output.PlaybackOutput
 import com.google.android.gms.cast.framework.CastContext
+import com.google.android.gms.cast.framework.CastSession
+import com.google.android.gms.cast.framework.SessionManagerListener
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 
@@ -20,6 +22,7 @@ class CastOutput(
     override val pausesPhoneOnDrop = false
 
     private var listener: PlaybackOutput.Listener? = null
+    private var castContext: CastContext? = null
     private var castPlayer: CastPlayer? = null
     private var released = false
 
@@ -32,6 +35,8 @@ class CastOutput(
         CastContext.getSharedInstance(context, ContextCompat.getMainExecutor(context))
             .addOnSuccessListener { castContext ->
                 if (released) return@addOnSuccessListener
+                this.castContext = castContext
+                castContext.sessionManager.addSessionManagerListener(sessionListener, CastSession::class.java)
                 val player = CastPlayer(castContext, CastMediaItemConverter())
                 castPlayer = player
                 player.setSessionAvailabilityListener(this)
@@ -46,6 +51,8 @@ class CastOutput(
 
     override fun release() {
         released = true
+        castContext?.sessionManager?.removeSessionManagerListener(sessionListener, CastSession::class.java)
+        castContext = null
         castPlayer?.let {
             it.setSessionAvailabilityListener(null)
             it.release()
@@ -58,6 +65,21 @@ class CastOutput(
     }
 
     override fun onCastSessionUnavailable() {
-        castPlayer?.let { listener?.onDropped(this, it) }
+        castPlayer?.let { listener?.onDropped(this, it, false) }
+    }
+
+    private val sessionListener = object : SessionManagerListener<CastSession> {
+        override fun onSessionStartFailed(session: CastSession, error: Int) {
+            listener?.onConnectFailed(this@CastOutput)
+        }
+
+        override fun onSessionStarting(session: CastSession) {}
+        override fun onSessionStarted(session: CastSession, sessionId: String) {}
+        override fun onSessionEnding(session: CastSession) {}
+        override fun onSessionEnded(session: CastSession, error: Int) {}
+        override fun onSessionResuming(session: CastSession, sessionId: String) {}
+        override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) {}
+        override fun onSessionResumeFailed(session: CastSession, error: Int) {}
+        override fun onSessionSuspended(session: CastSession, reason: Int) {}
     }
 }

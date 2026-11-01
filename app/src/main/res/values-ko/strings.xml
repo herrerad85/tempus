@@ -145,7 +145,6 @@
     <string name="login_empty">서버가 없습니다.</string>
     <string name="login_title">Subsonic 서버</string>
     <string name="login_title_expanded">Subsonic 서버</string>
-    <string name="media_route_menu_title">Cast</string>
     <string name="menu_add_to_playlist_button">플레이리스트에 추가</string>
     <string name="menu_download_all_button">모두 다운로드</string>
     <string name="menu_rate_album">앨범 평점 매기기</string>
