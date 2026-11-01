@@ -12,6 +12,10 @@ import androidx.mediarouter.media.MediaRouteProviderDescriptor
 import androidx.mediarouter.media.MediaRouter
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 class UpnpRouteProvider(
     context: Context,
@@ -21,7 +25,7 @@ class UpnpRouteProvider(
     // Both name the device, since the framework selects the new route before unselecting the old.
     interface SelectionListener {
         fun onRendererSelected(device: UpnpDevice)
-        fun onRendererUnselected(device: UpnpDevice)
+        fun onRendererUnselected(device: UpnpDevice, reason: Int)
     }
 
     var selectionListener: SelectionListener? = null
@@ -35,6 +39,10 @@ class UpnpRouteProvider(
     @Volatile private var scanning = false
     @Volatile private var activeScan = false
     @Volatile private var scanInFlight = false
+
+    init {
+        landed.value = 0
+    }
 
     private val rescan = object : Runnable {
         override fun run() {
@@ -60,9 +68,9 @@ class UpnpRouteProvider(
         activeScan = false
         handler.removeCallbacksAndMessages(null)
         worker.shutdown()
+        landed.value = null
     }
 
-    // A route button on screen asks for no discovery, only the chooser dialog or the Cast SDK does.
     override fun onDiscoveryRequestChanged(request: MediaRouteDiscoveryRequest?) {
         val wanted = request?.selector?.hasControlCategory(CATEGORY_UPNP) == true
         val active = wanted && request?.isActiveScan == true
@@ -73,7 +81,6 @@ class UpnpRouteProvider(
         if (wanted) handler.post(rescan)
     }
 
-    /** Published as each round lands, since the picker gives up on a search that shows it nothing. */
     private fun scanOnce() {
         repeat(ROUNDS_PER_SCAN) {
             if (!scanning) return
@@ -81,6 +88,7 @@ class UpnpRouteProvider(
                 controlPoint.discover()
             } catch (e: Exception) {
                 Log.w(TAG, "discovery failed", e)
+                handler.post(::roundLanded)
                 return
             }
 
@@ -91,7 +99,12 @@ class UpnpRouteProvider(
                 }
             }
             if (devices.isNotEmpty()) handler.post { publish() }
+            handler.post(::roundLanded)
         }
+    }
+
+    private fun roundLanded() {
+        landed.update { it?.plus(1) }
     }
 
     private fun publish() {
@@ -119,7 +132,7 @@ class UpnpRouteProvider(
             }
 
             override fun onUnselect(reason: Int) {
-                selectionListener?.onRendererUnselected(device)
+                selectionListener?.onRendererUnselected(device, reason)
             }
         }
     }
@@ -136,5 +149,12 @@ class UpnpRouteProvider(
         private val ACTIVE_INTERVAL_MS = TimeUnit.SECONDS.toMillis(10)
 
         private val PASSIVE_INTERVAL_MS = TimeUnit.MINUTES.toMillis(2)
+
+        private val landed = MutableStateFlow<Int?>(null)
+
+        /**
+         * Discovery rounds finished by the registered provider, null while none is registered.
+         */
+        val roundsLanded: StateFlow<Int?> = landed.asStateFlow()
     }
 }

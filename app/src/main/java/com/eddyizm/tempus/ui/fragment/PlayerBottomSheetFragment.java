@@ -50,9 +50,6 @@ import java.util.stream.IntStream;
 @OptIn(markerClass = UnstableApi.class)
 public class PlayerBottomSheetFragment extends Fragment {
     private boolean remoteVisible = false;
-    private final android.content.SharedPreferences.OnSharedPreferenceChangeListener lanSwitchListener = (prefs, key) -> {
-        if (Preferences.LAN_REMOTE_ENABLED.equals(key)) renderRemote(com.eddyizm.tempus.lan.LanRemoteSession.current());
-    };
     private String remoteCover = null;
     private String remoteMediaSignature = null;
     private FragmentPlayerBottomSheetBinding bind;
@@ -79,8 +76,6 @@ public class PlayerBottomSheetFragment extends Fragment {
         initQueueBridge(playbackViewModel);
         setHeaderBookmarksButton();
         com.eddyizm.tempus.lan.LanRemoteSession.state().observe(getViewLifecycleOwner(), this::renderRemote);
-        // Settings is a fragment in this activity, so a flipped switch is heard here rather than on resume.
-        com.eddyizm.tempus.App.getInstance().getPreferences().registerOnSharedPreferenceChangeListener(lanSwitchListener);
 
         if (getActivity() instanceof MainActivity) {
             MainActivity activity = (MainActivity) getActivity();
@@ -121,7 +116,6 @@ public class PlayerBottomSheetFragment extends Fragment {
         if (progressBarHandler != null) {
             progressBarHandler.removeCallbacks(progressBarRunnable);
         }
-        com.eddyizm.tempus.App.getInstance().getPreferences().unregisterOnSharedPreferenceChangeListener(lanSwitchListener);
         remoteVisible = false;
         remoteCover = null;
         remoteMediaSignature = null;
@@ -129,7 +123,6 @@ public class PlayerBottomSheetFragment extends Fragment {
     }
 
     private void customizeBottomSheetAction() {
-        bind.playerHeaderLayout.playerHeaderRemoteButton.setOnClickListener(v -> com.eddyizm.tempus.lan.LanDevicePicker.toggle(requireActivity()));
         bind.playerHeaderLayout.getRoot().setOnClickListener(view -> ((MainActivity) requireActivity()).expandBottomSheet());
     }
 
@@ -376,13 +369,6 @@ public class PlayerBottomSheetFragment extends Fragment {
 
     private void renderRemote(com.eddyizm.tempus.lan.LanRemoteState state) {
         if (bind == null) return;
-        bind.playerHeaderLayout.playerHeaderRemoteButton.setVisibility(
-                com.eddyizm.tempus.lan.LanDevicePicker.isOffered() ? View.VISIBLE : View.GONE);
-        bind.playerHeaderLayout.playerHeaderRemoteButton.setSelected(state.getActive());
-        bind.playerHeaderLayout.playerHeaderRemoteButton.setContentDescription(
-                state.getActive() ? getString(R.string.lan_controlling, state.getName()) : getString(R.string.lan_play_on));
-        androidx.appcompat.widget.TooltipCompat.setTooltipText(bind.playerHeaderLayout.playerHeaderRemoteButton,
-                bind.playerHeaderLayout.playerHeaderRemoteButton.getContentDescription());
         boolean wasRemote = remoteVisible;
         remoteVisible = state.getActive();
         if (remoteVisible) {

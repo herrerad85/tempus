@@ -6,12 +6,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.clearInvocations
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 
 class OutputManagerTest {
@@ -53,7 +56,9 @@ class OutputManagerTest {
 
         fun connect(player: Player) = listener.onConnected(this, player)
 
-        fun drop(player: Player) = listener.onDropped(this, player)
+        fun drop(player: Player, switching: Boolean = false) = listener.onDropped(this, player, switching)
+
+        fun fail() = listener.onConnectFailed(this)
     }
 
     private val first = mock<MediaItem>()
@@ -220,6 +225,142 @@ class OutputManagerTest {
         verify(receiver, never()).stop()
         assertEquals(1, session.changes.size)
         assertEquals(1, cast.loads.size)
+    }
+
+    @Test
+    fun switchAwayFromAPlayingOutputStartsTheNextOnePlaying() {
+        val phone = queuedPlayer(playing = true)
+        val session = FakeSession(phone)
+        val manager = OutputManager(phone, session)
+        val upnp = FakeOutput(pausesPhoneOnDrop = true).also(manager::register)
+        val cast = FakeOutput(pausesPhoneOnDrop = false).also(manager::register)
+        val renderer = queuedPlayer(playing = true)
+        val receiver = mock<Player>()
+        upnp.connect(renderer)
+        upnp.drop(renderer, switching = true)
+
+        cast.connect(receiver)
+
+        verify(phone, never()).playWhenReady = true
+        verify(receiver).playWhenReady = true
+        assertEquals(listOf(receiver to true), cast.loads)
+        assertSame(receiver, session.player)
+    }
+
+    @Test
+    fun switchAwayFromAPausedOutputStartsTheNextOnePaused() {
+        val phone = queuedPlayer(playing = true)
+        val manager = OutputManager(phone, FakeSession(phone))
+        val upnp = FakeOutput(pausesPhoneOnDrop = true).also(manager::register)
+        val cast = FakeOutput(pausesPhoneOnDrop = false).also(manager::register)
+        val renderer = queuedPlayer(playing = false)
+        val receiver = mock<Player>()
+        upnp.connect(renderer)
+        upnp.drop(renderer, switching = true)
+
+        cast.connect(receiver)
+
+        verify(receiver).playWhenReady = false
+        verify(receiver, never()).playWhenReady = true
+        assertEquals(listOf(receiver to false), cast.loads)
+    }
+
+    @Test
+    fun dropThatIsNotASwitchLeavesTheNextOutputPaused() {
+        val phone = queuedPlayer(playing = true)
+        val manager = OutputManager(phone, FakeSession(phone))
+        val upnp = FakeOutput(pausesPhoneOnDrop = true).also(manager::register)
+        val cast = FakeOutput(pausesPhoneOnDrop = false).also(manager::register)
+        val renderer = queuedPlayer(playing = true)
+        val receiver = mock<Player>()
+        upnp.connect(renderer)
+        upnp.drop(renderer)
+
+        cast.connect(receiver)
+
+        verify(receiver).playWhenReady = false
+        verify(receiver, never()).playWhenReady = true
+    }
+
+    @Test
+    fun playOnThePhoneAfterASwitchForgetsTheSwitch() {
+        val phone = queuedPlayer(playing = true)
+        val manager = OutputManager(phone, FakeSession(phone))
+        val phoneListener = argumentCaptor<Player.Listener>()
+        verify(phone).addListener(phoneListener.capture())
+        val upnp = FakeOutput(pausesPhoneOnDrop = true).also(manager::register)
+        val cast = FakeOutput(pausesPhoneOnDrop = false).also(manager::register)
+        val renderer = queuedPlayer(playing = true)
+        val receiver = mock<Player>()
+        upnp.connect(renderer)
+        upnp.drop(renderer, switching = true)
+
+        phoneListener.firstValue.onPlayWhenReadyChanged(true, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+        phoneListener.firstValue.onPlayWhenReadyChanged(false, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+        cast.connect(receiver)
+
+        verify(receiver).playWhenReady = false
+        verify(receiver, never()).playWhenReady = true
+    }
+
+    @Test
+    fun failedConnectAfterASwitchForgetsTheSwitch() {
+        val phone = queuedPlayer(playing = true)
+        val manager = OutputManager(phone, FakeSession(phone))
+        val upnp = FakeOutput(pausesPhoneOnDrop = true).also(manager::register)
+        val cast = FakeOutput(pausesPhoneOnDrop = false).also(manager::register)
+        val renderer = queuedPlayer(playing = true)
+        val receiver = mock<Player>()
+        upnp.connect(renderer)
+        upnp.drop(renderer, switching = true)
+
+        cast.fail()
+        cast.connect(receiver)
+
+        verify(receiver).playWhenReady = false
+        verify(receiver, never()).playWhenReady = true
+    }
+
+    @Test
+    fun failedConnectWithNoSwitchChangesNothingElse() {
+        val phone = queuedPlayer(playing = false)
+        val manager = OutputManager(phone, FakeSession(phone))
+        val upnp = FakeOutput(pausesPhoneOnDrop = true).also(manager::register)
+        val cast = FakeOutput(pausesPhoneOnDrop = false).also(manager::register)
+        val renderer = queuedPlayer(playing = false)
+        val receiver = mock<Player>()
+        upnp.connect(renderer)
+        clearInvocations(phone, renderer)
+
+        cast.fail()
+        verifyNoInteractions(phone, renderer)
+        assertEquals(0, cast.releases)
+        cast.connect(receiver)
+
+        verify(phone, never()).playWhenReady = true
+        verify(renderer, never()).playWhenReady = true
+        verify(receiver).playWhenReady = false
+        verify(receiver, never()).playWhenReady = true
+        assertEquals(listOf(renderer), upnp.stoodDown)
+    }
+
+    @Test
+    fun switchCarriesToOneConnectOnly() {
+        val phone = queuedPlayer(playing = true)
+        val manager = OutputManager(phone, FakeSession(phone))
+        val upnp = FakeOutput(pausesPhoneOnDrop = true).also(manager::register)
+        val cast = FakeOutput(pausesPhoneOnDrop = false).also(manager::register)
+        val renderer = queuedPlayer(playing = true)
+        val receiver = queuedPlayer(playing = false)
+        val nextRenderer = mock<Player>()
+        upnp.connect(renderer)
+        upnp.drop(renderer, switching = true)
+        cast.connect(receiver)
+
+        upnp.connect(nextRenderer)
+
+        verify(nextRenderer).playWhenReady = false
+        verify(nextRenderer, never()).playWhenReady = true
     }
 
     @Test

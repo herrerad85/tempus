@@ -1,11 +1,9 @@
 <resources>
     <string name="lan_title">Player remoto</string>
-    <string name="lan_choose_device">Scegli il player remoto</string>
     <string name="lan_searching">Ricerca dei player…</string>
     <string name="lan_connecting">Collegamento…</string>
     <string name="lan_reconnecting">Riconnessione… La musica continua sul ricevente.</string>
     <string name="lan_release_control">Lascia il controllo remoto</string>
-    <string name="lan_controlling">%1$s · Lascia controllo</string>
     <string name="lan_operating_on">Su %1$s</string>
     <string name="lan_receiver_audio_settings">Configura gli effetti audio sul telefono ricevente.</string>
     <string name="lan_remote_active">Controllo remoto</string>

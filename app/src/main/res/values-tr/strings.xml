@@ -164,7 +164,6 @@
     <string name="login_empty">Sunucu eklenmedi</string>
     <string name="login_title">Subsonic sunucuları</string>
     <string name="login_title_expanded">Subsonic sunucuları</string>
-    <string name="media_route_menu_title">Yayınla</string>
     <string name="menu_add_to_playlist_button">Çalma listesine ekle</string>
     <string name="menu_download_all_button">Tümünü indir</string>
     <string name="menu_rate_album">Albümü oyla</string>

@@ -214,7 +214,6 @@
     <string name="login_empty">尚未新增伺服器</string>
     <string name="login_title">Subsonic 伺服器</string>
     <string name="login_title_expanded">Subsonic 伺服器</string>
-    <string name="media_route_menu_title">投送</string>
     <string name="menu_add_to_playlist_button">新增到播放清單</string>
     <string name="menu_download_all_button">全部下載</string>
     <string name="menu_download_label">下載</string>

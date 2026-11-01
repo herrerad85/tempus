@@ -21,12 +21,12 @@ import com.eddyizm.tempus.model.Server;
 import com.eddyizm.tempus.repository.ServerRepository;
 import com.eddyizm.tempus.subsonic.models.MusicFolder;
 import com.eddyizm.tempus.ui.activity.MainActivity;
-import com.eddyizm.tempus.util.Flavors;
+import com.eddyizm.tempus.ui.devices.DevicesButton;
+import com.eddyizm.tempus.ui.devices.DevicesSheetHost;
 import com.eddyizm.tempus.util.MusicFolderUtil;
 import com.eddyizm.tempus.util.Preferences;
 import com.eddyizm.tempus.viewmodel.LibraryViewModel;
 import com.eddyizm.tempus.viewmodel.MainViewModel;
-import com.eddyizm.tempus.upnp.UpnpRouteSetup;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -62,13 +62,8 @@ public class ToolbarFragment extends Fragment {
     public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
         super.onCreateOptionsMenu(menu, inflater);
         inflater.inflate(R.menu.main_page_menu, menu);
-        Flavors.setUpRouteButton(requireContext(), menu);
         // Read on every build. Settings replaces the host screen, whose setSupportActionBar on return rebuilds this menu.
-        if (Preferences.isUpnpEnabled()) {
-            UpnpRouteSetup.pointAtUpnpRenderers(menu);
-        } else if (Flavors.routeButtonIsOnlyForUpnp(requireContext())) {
-            menu.findItem(R.id.media_route_menu_item).setVisible(false);
-        }
+        DevicesButton.show(menu.findItem(R.id.action_devices), requireContext());
     }
 
     @Override
@@ -89,6 +84,7 @@ public class ToolbarFragment extends Fragment {
         super.onViewCreated(view, savedInstanceState);
 
         initMusicLibrarySwitcher();
+        DevicesButton.watch(getViewLifecycleOwner(), requireContext(), () -> requireActivity().invalidateOptionsMenu());
     }
 
     @Override
@@ -111,6 +107,9 @@ public class ToolbarFragment extends Fragment {
             return true;
         } else if (item.getItemId() == R.id.action_settings) {
             activity.navController.navigate(R.id.settingsFragment);
+            return true;
+        } else if (item.getItemId() == R.id.action_devices) {
+            DevicesSheetHost.show(requireActivity());
             return true;
         }
 

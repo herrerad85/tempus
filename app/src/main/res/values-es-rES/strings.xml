@@ -189,7 +189,6 @@
     <string name="login_empty">No has añadido ningún servidor</string>
     <string name="login_title">Servidores de Subsonic</string>
     <string name="login_title_expanded">Servidores de Subsonic</string>
-    <string name="media_route_menu_title">Emitir</string>
     <string name="menu_login_button">Iniciar sesión</string>
     <string name="menu_add_to_playlist_button">Añadir a la lista de reproducción</string>
     <string name="menu_edit_playlist_button">Editar lista de reproducción</string>
@@ -849,12 +848,10 @@
     <string name="search_description_empty_response">Hemos comprobado la respuesta de su servidor pero estaba vacía.</string>
     <string name="la_button_advanced_editor">Abrir editor de servidores</string>
     <string name="lan_title">Dispositivo remoto</string>
-    <string name="lan_choose_device">Elige un dispositivo remoto</string>
     <string name="lan_searching">Buscando dispositivos…</string>
     <string name="lan_connecting">Conectando…</string>
     <string name="lan_reconnecting">Reconectando… La reproducción continúa en el receptor.</string>
     <string name="lan_release_control">Liberar el control remoto</string>
-    <string name="lan_controlling">%1$s · Liberar control</string>
     <string name="lan_operating_on">Reproduciendo en %1$s</string>
     <string name="lan_receiver_audio_settings">Configurar efectos de audio en el teléfono receptor</string>
     <string name="lan_remote_active">Control remoto</string>

@@ -179,7 +179,6 @@
     <string name="login_empty">Nessun server aggiunto</string>
     <string name="login_title">Server Subsonic</string>
     <string name="login_title_expanded">Server Subsonic</string>
-    <string name="media_route_menu_title">Trasmetti</string>
     <string name="menu_add_to_playlist_button">Aggiungi alla playlist</string>
     <string name="menu_download_all_button">Scarica tutto</string>
     <string name="menu_rate_album">Valuta l\'album</string>

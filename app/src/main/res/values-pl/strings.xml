@@ -254,7 +254,6 @@
     <string name="login_empty">Brak dodanych serwerów</string>
     <string name="login_title">Serwery Subsonic</string>
     <string name="login_title_expanded">Serwery Subsonic</string>
-    <string name="media_route_menu_title">Przesyłanie</string>
     <string name="menu_add_to_playlist_button">Dodaj do playlisty</string>
     <string name="playlist_added_to_queue">Playlista dodana do kolejki</string>
     <string name="menu_go_to_playlist_button">Odtwarzaj</string>

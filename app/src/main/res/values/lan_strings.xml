@@ -1,12 +1,10 @@
 <!-- Local preview: English fallback is intentional until community translations are available. -->
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="lan_title">Remote player</string>
-    <string name="lan_choose_device">Choose a remote player</string>
     <string name="lan_searching">Finding players…</string>
     <string name="lan_connecting">Connecting…</string>
     <string name="lan_reconnecting">Reconnecting… Playback continues on the receiver.</string>
     <string name="lan_release_control">Release remote control</string>
-    <string name="lan_controlling">%1$s · Release control</string>
     <string name="lan_operating_on">Playing on %1$s</string>
     <string name="lan_receiver_audio_settings">Configure audio effects on the receiving phone.</string>
     <string name="lan_remote_active">Remote control</string>

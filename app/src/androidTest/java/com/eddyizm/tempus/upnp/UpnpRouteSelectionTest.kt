@@ -83,7 +83,7 @@ class UpnpRouteSelectionTest {
                     selected.incrementAndGet()
                 }
 
-                override fun onRendererUnselected(device: UpnpDevice) {
+                override fun onRendererUnselected(device: UpnpDevice, reason: Int) {
                     unselected.incrementAndGet()
                 }
             }
