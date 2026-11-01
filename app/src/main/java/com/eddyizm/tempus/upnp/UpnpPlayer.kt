@@ -55,6 +55,7 @@ class UpnpPlayer(
     @Volatile private var index = 0
     @Volatile private var playWhenReady = false
     @Volatile private var playbackState = Player.STATE_IDLE
+    @Volatile private var repeatMode = Player.REPEAT_MODE_OFF
     @Volatile private var positionMs = 0L
         set(value) {
             field = value
@@ -212,6 +213,7 @@ class UpnpPlayer(
             .setPlayWhenReady(playWhenReady, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
             .setPlaylist(items)
             .setCurrentMediaItemIndex(index.coerceIn(0, maxOf(0, items.size - 1)))
+            .setRepeatMode(repeatMode)
             .setContentPositionMs(position)
 
         if (volume != null) {
@@ -275,9 +277,16 @@ class UpnpPlayer(
         )
     }
 
+    override fun handleSetRepeatMode(repeatMode: Int): ListenableFuture<*> {
+        val nextUrlBefore = urlOf(nextEntry())
+        this.repeatMode = repeatMode
+        return if (urlOf(nextEntry()) != nextUrlBefore) worker.submit<Unit> { sendNextTrack() }
+        else Futures.immediateVoidFuture()
+    }
+
     private fun editQueue(edit: (MutableList<Entry>) -> Unit): ListenableFuture<*> {
         val playingUid = currentEntry()?.uid
-        val nextUrlBefore = urlOf(playlist.getOrNull(index + 1))
+        val nextUrlBefore = urlOf(nextEntry())
 
         val queue = playlist.toMutableList()
         edit(queue)
@@ -301,7 +310,7 @@ class UpnpPlayer(
                 durationUs = C.TIME_UNSET
                 loadLater(seekToMs = 0L)
             }
-            urlOf(queue.getOrNull(index + 1)) != nextUrlBefore ->
+            urlOf(nextEntry()) != nextUrlBefore ->
                 worker.submit<Unit> { sendNextTrack() }
             else -> Futures.immediateVoidFuture()
         }
@@ -689,8 +698,23 @@ class UpnpPlayer(
 
     // Only while playing, or filling the slot just consumed extends playback somebody asked to end.
     private fun sendNextTrack() {
-        if (!playWhenReady) return
-        val next = playlist.getOrNull(index + 1) ?: return
+        // Kodi adds every next track to its play queue, and an empty one does not take it back out.
+        if (!playWhenReady || isKodi) return
+        val next = nextEntry()
+        val currentUrl = urlOf(currentEntry())
+        // A renderer handed its own URL as the next track loops it without TrackURI ever changing.
+        if (next == null || urlOf(next) == currentUrl) {
+            val held = nextTrackSentFor
+            if (held != null && held != currentUrl) {
+                try {
+                    controlPoint.setNextAvTransportUri(device, "", "")
+                } catch (e: Exception) {
+                    Log.d(TAG, "renderer did not clear the next track", e)
+                }
+            }
+            nextTrackSentFor = null
+            return
+        }
         val nextUrl = urlOf(next) ?: return
         try {
             controlPoint.setNextAvTransportUri(device, nextUrl, metadataFor(next.item, nextUrl))
@@ -908,8 +932,8 @@ class UpnpPlayer(
         }
 
         // A renderer holding the next track reports stopped for a moment before starting it.
-        val next = playlist.getOrNull(index + 1)
-        val holdsNext = next != null && nextTrackSentFor == urlOf(next)
+        val held = nextTrackSentFor
+        val holdsNext = held != null && held != urlOf(entry)
         if (holdsNext && stoppedAtEndPolls < MAX_POLLS_AWAITING_HANDOVER) {
             stoppedAtEndPolls += 1
             return
@@ -917,9 +941,10 @@ class UpnpPlayer(
         stoppedAtEndPolls = 0
 
         val counted = countsAsPlayed(playedMs, lengthMs)
-        if (index + 1 < playlist.size) {
+        val nextIndex = nextIndexToPlay()
+        if (nextIndex != null) {
             rendererAdvancedItself = counted
-            index += 1
+            index = nextIndex
             positionMs = 0
             durationUs = C.TIME_UNSET
             rendererStarted = false
@@ -960,6 +985,14 @@ class UpnpPlayer(
     }
 
     private fun currentEntry(): Entry? = playlist.getOrNull(index)
+
+    private fun nextIndexToPlay(): Int? = nextIndexOf(
+        index,
+        playlist.size,
+        if (isStation(currentEntry())) Player.REPEAT_MODE_OFF else repeatMode
+    )
+
+    private fun nextEntry(): Entry? = nextIndexToPlay()?.let { playlist.getOrNull(it) }
 
     private fun metadataFor(item: MediaItem, url: String): String {
         val metadata = item.mediaMetadata
@@ -1123,6 +1156,7 @@ class UpnpPlayer(
             Player.COMMAND_GET_METADATA,
             // Without it the session strips the tracks from what a controller sees.
             Player.COMMAND_GET_TRACKS,
+            Player.COMMAND_SET_REPEAT_MODE,
             Player.COMMAND_RELEASE
         ).build()
 
@@ -1143,6 +1177,15 @@ class UpnpPlayer(
             } else {
                 item.localConfiguration?.uri?.toString()
             }
+
+        @JvmStatic
+        fun nextIndexOf(index: Int, size: Int, repeatMode: Int): Int? = when {
+            index !in 0 until size -> null
+            repeatMode == Player.REPEAT_MODE_ONE -> index
+            index + 1 < size -> index + 1
+            repeatMode == Player.REPEAT_MODE_ALL -> 0
+            else -> null
+        }
 
         @JvmStatic
         fun asMillis(clock: String?): Long? {

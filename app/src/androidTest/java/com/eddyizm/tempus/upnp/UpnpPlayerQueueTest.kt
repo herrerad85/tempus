@@ -85,7 +85,11 @@ class UpnpPlayerQueueTest {
                         .replace("&amp;", "&")
                     holdHandovers?.await(5, TimeUnit.SECONDS)
                 }
-                if (action == "SetNextAVTransportURI") SystemClock.sleep(delayNextUriMs)
+                if (action == "SetNextAVTransportURI") {
+                    val body = Buffer().also { chain.request().body?.writeTo(it) }.readUtf8()
+                    nextUris += body.substringAfter("<NextURI>").substringBefore("</NextURI>").replace("&amp;", "&")
+                    SystemClock.sleep(delayNextUriMs)
+                }
                 if (action == "GetPositionInfo") SystemClock.sleep(delayPositionInfoMs)
                 if (action == "GetPositionInfo") {
                     holdPolls?.let { pollHeld.countDown(); it.await(5, TimeUnit.SECONDS) }
@@ -153,6 +157,7 @@ class UpnpPlayerQueueTest {
     @Volatile private var pollHeld = CountDownLatch(1)
     private val actions = CopyOnWriteArrayList<String>()
     private val handovers = CopyOnWriteArrayList<String>()
+    private val nextUris = CopyOnWriteArrayList<String>()
 
     private fun urlAt(n: Int) = "http://192.0.2.50:4533/rest/stream?id=$n"
 
@@ -207,6 +212,7 @@ class UpnpPlayerQueueTest {
         pollHeld = CountDownLatch(1)
         actions.clear()
         handovers.clear()
+        nextUris.clear()
         device = UpnpDevice.parseDescription(description, "http://192.0.2.10:1549/").single()
         onMain { player = UpnpPlayer(controlPoint(), device, Looper.getMainLooper()) }
     }
@@ -1953,6 +1959,188 @@ class UpnpPlayerQueueTest {
         assertFalse("the app sent a Play of its own: $sent", sent.contains("Play"))
         assertTrue("the seek made while paused never reached the renderer: $sent", sent.contains("Seek"))
         assertTrue("the track added while paused was never sent as next: $sent", sent.contains("SetNextAVTransportURI"))
+    }
+
+    @Test
+    fun repeatOneTurnedOnMidTrackClearsTheNextTrackAlreadyHandedOver() {
+        onMain {
+            player.setMediaItems(listOf(itemAt(1), itemAt(2), itemAt(3)), 0, 0L)
+            player.playWhenReady = true
+        }
+        assertTrue("never reached ready", awaitState(Player.STATE_READY))
+        assertTrue("the next track was never handed over, so this proves nothing: $nextUris", awaitNextUris(1))
+
+        onMain { player.repeatMode = Player.REPEAT_MODE_ONE }
+        SystemClock.sleep(1000)
+
+        assertEquals("the next track handed over was not cleared", listOf(urlAt(2), ""), nextUris.toList())
+    }
+
+    @Test
+    fun withRepeatOneTheTrackIsLoadedAgainAtItsEndInsteadOfHandedOverAsItsOwnNext() {
+        onMain {
+            player.repeatMode = Player.REPEAT_MODE_ONE
+            player.setMediaItems(listOf(itemAt(1), itemAt(2)), 0, 0L)
+            player.playWhenReady = true
+        }
+        assertTrue("never reached ready", awaitState(Player.STATE_READY))
+        runTheBarToTheEndOfTheTrack()
+
+        reportedState = "STOPPED"
+        SystemClock.sleep(3000)
+        reportedState = "PLAYING"
+        SystemClock.sleep(1500)
+
+        assertEquals("the track was not loaded again at its end", listOf(urlAt(1), urlAt(1)), handovers.toList())
+        assertEquals("track-1", onMainGet { player.currentMediaItem?.mediaId })
+        assertFalse("the track was handed over as its own next: $nextUris", nextUris.contains(urlAt(1)))
+        assertNull(onMainGet { player.playerError })
+    }
+
+    @Test
+    fun kodiIsNeverHandedANextTrack() {
+        actAsKodi()
+        onMain {
+            player.setMediaItems(listOf(itemAt(1), itemAt(2), itemAt(3)), 0, 0L)
+            player.playWhenReady = true
+        }
+        assertTrue("never reached ready", awaitState(Player.STATE_READY))
+        SystemClock.sleep(2500)
+        onMain { player.repeatMode = Player.REPEAT_MODE_ONE }
+        SystemClock.sleep(1000)
+        onMain { player.repeatMode = Player.REPEAT_MODE_OFF }
+        SystemClock.sleep(1000)
+
+        assertEquals("the track was never handed over, so this proves nothing", listOf(urlAt(1)), handovers.toList())
+        assertFalse("Kodi was sent a next track: $actions", actions.contains("SetNextAVTransportURI"))
+    }
+
+    @Test
+    fun aStationStoppedOnTheRendererStaysStoppedWithRepeatOn() = assertAStoppedStationStaysStopped(Player.REPEAT_MODE_ONE)
+
+    @Test
+    fun aStationStoppedOnTheRendererStaysStoppedWithRepeatAll() = assertAStoppedStationStaysStopped(Player.REPEAT_MODE_ALL)
+
+    private fun assertAStoppedStationStaysStopped(repeatMode: Int) {
+        val station = MediaItem.Builder()
+            .setMediaId("radio-1")
+            .setUri(urlAt(1))
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setExtras(Bundle().apply { putString("type", Constants.MEDIA_TYPE_RADIO) })
+                    .build()
+            )
+            .build()
+        onMain {
+            player.repeatMode = repeatMode
+            player.setMediaItems(listOf(station), 0, 0L)
+            player.playWhenReady = true
+        }
+        assertTrue("never reached ready", awaitState(Player.STATE_READY))
+
+        reportedState = "STOPPED"
+        SystemClock.sleep(3000)
+
+        assertEquals("a station stopped on the renderer was loaded again", listOf(urlAt(1)), handovers.toList())
+        assertEquals(Player.STATE_IDLE, onMainGet { player.playbackState })
+    }
+
+    @Test
+    fun repeatAllTurnedOffOnTheLastTrackClearsTheFirstTrackAlreadyHandedOver() {
+        onMain {
+            player.repeatMode = Player.REPEAT_MODE_ALL
+            player.setMediaItems(listOf(itemAt(1), itemAt(2)), 1, 0L)
+            player.playWhenReady = true
+        }
+        assertTrue("never reached ready", awaitState(Player.STATE_READY))
+        assertTrue("the first track was never handed over, so this proves nothing: $nextUris", awaitNextUris(1))
+
+        onMain { player.repeatMode = Player.REPEAT_MODE_OFF }
+        SystemClock.sleep(1000)
+
+        assertEquals("the first track handed over was not cleared", listOf(urlAt(1), ""), nextUris.toList())
+    }
+
+    @Test
+    fun theRepeatModeSetIsTheOneReported() {
+        onMain {
+            player.setMediaItems(listOf(itemAt(1), itemAt(2)), 0, 0L)
+            player.repeatMode = Player.REPEAT_MODE_ONE
+        }
+        SystemClock.sleep(1000)
+        assertEquals(Player.REPEAT_MODE_ONE, onMainGet { player.repeatMode })
+
+        onMain { player.repeatMode = Player.REPEAT_MODE_ALL }
+        SystemClock.sleep(1000)
+        assertEquals(Player.REPEAT_MODE_ALL, onMainGet { player.repeatMode })
+    }
+
+    @Test
+    fun withRepeatAllAStopAtTheEndOfTheLastTrackWaitsForARendererHoldingTheFirst() {
+        onMain {
+            player.repeatMode = Player.REPEAT_MODE_ALL
+            player.setMediaItems(listOf(itemAt(1), itemAt(2)), 1, 0L)
+            player.playWhenReady = true
+        }
+        assertTrue("never reached ready", awaitState(Player.STATE_READY))
+        assertTrue("the first track was never handed over, so this proves nothing: $nextUris", awaitNextUris(1))
+        runTheBarToTheEndOfTheTrack()
+
+        reportedState = "STOPPED"
+        SystemClock.sleep(3000)
+        assertEquals("a load went out while the renderer was starting the first track: $handovers", listOf(urlAt(2)), handovers)
+
+        reportedTrackUri = urlAt(1)
+        reportedState = "PLAYING"
+        assertEquals("the app never followed the renderer onto the first track", 0, awaitIndex(0))
+        assertEquals("the first track was loaded although the renderer had it: $handovers", listOf(urlAt(2)), handovers)
+    }
+
+    @Test
+    fun withRepeatAllARendererThatRefusedTheNextTrackIsLoadedTheFirstAtTheEnd() {
+        refuseNextUriCode = 602
+        onMain {
+            player.repeatMode = Player.REPEAT_MODE_ALL
+            player.setMediaItems(listOf(itemAt(1), itemAt(2)), 1, 0L)
+            player.playWhenReady = true
+        }
+        assertTrue("never reached ready", awaitState(Player.STATE_READY))
+        assertTrue("the first track was never offered as next, so this proves nothing: $nextUris", awaitNextUris(1))
+        runTheBarToTheEndOfTheTrack()
+
+        reportedState = "STOPPED"
+        SystemClock.sleep(3000)
+        reportedState = "PLAYING"
+
+        assertEquals("the queue did not go round to the first track", 0, awaitIndex(0))
+        assertEquals("the first track was not loaded at the end: $handovers", listOf(urlAt(2), urlAt(1)), handovers.toList())
+        assertNull(onMainGet { player.playerError })
+    }
+
+    @Test
+    fun repeatOneTurnedOffMidTrackHandsTheNextTrackOver() {
+        onMain {
+            player.repeatMode = Player.REPEAT_MODE_ONE
+            player.setMediaItems(listOf(itemAt(1), itemAt(2), itemAt(3)), 0, 0L)
+            player.playWhenReady = true
+        }
+        assertTrue("never reached ready", awaitState(Player.STATE_READY))
+        SystemClock.sleep(2500)
+        assertTrue("a next track was handed over under repeat one: $nextUris", nextUris.isEmpty())
+
+        onMain { player.repeatMode = Player.REPEAT_MODE_OFF }
+
+        assertTrue("no next track was handed over after repeat one went off", awaitNextUris(1))
+        assertEquals(listOf(urlAt(2)), nextUris.toList())
+    }
+
+    private fun awaitNextUris(count: Int): Boolean {
+        val deadline = SystemClock.elapsedRealtime() + 10_000
+        while (SystemClock.elapsedRealtime() < deadline) {
+            if (nextUris.size >= count) return true
+            SystemClock.sleep(100)
+        }
+        return false
     }
 
     @Test
