@@ -12,6 +12,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
 import com.eddyizm.tempus.R
+import com.eddyizm.tempus.lan.LanRemoteSession
 import com.eddyizm.tempus.upnp.UpnpRouteProvider
 import com.eddyizm.tempus.util.Flavors
 import com.eddyizm.tempus.util.Preferences
@@ -22,7 +23,7 @@ internal class MediaRouteDevices(private val context: Context) : DeviceSource {
     override fun isOffered(): Boolean = Preferences.isUpnpEnabled() || Flavors.isCastAvailable(context)
 
     override fun active(): ActiveDevice? =
-        router.selectedRoute.takeUnless { it.playsOnThisDevice }?.let { ActiveDevice(it.kind(), it.name) }
+        router.selectedRoute.takeUnless { it.playsOnThisDevice || LanRemoteSession.isActive() }?.let { ActiveDevice(it.kind(), it.name) }
 
     override fun watch(onChange: () -> Unit): () -> Unit {
         val callback = routeChanges(onChange)

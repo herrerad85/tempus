@@ -22,7 +22,7 @@ class CurrentDeviceTest {
 
     private val context = mock<Context>()
     private val tv = ActiveDevice(DeviceKind.TV, "Bravia")
-    private val kitchen = ActiveDevice(DeviceKind.CAST, "Kitchen")
+    private val kitchen = ActiveDevice(DeviceKind.TEMPUS_PLAYER, "Kitchen")
 
     @Test
     fun firstSourcePlayingWins() {
