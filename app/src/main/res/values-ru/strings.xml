@@ -257,7 +257,6 @@
     <string name="login_empty">Серверы не добавлены</string>
     <string name="login_title">Серверы Subsonic</string>
     <string name="login_title_expanded">Серверы Subsonic</string>
-    <string name="media_route_menu_title">Трансляция</string>
     <string name="menu_add_to_playlist_button">В плейлист</string>
     <string name="playlist_added_to_queue">Плейлист добавлен в очередь</string>
     <string name="menu_go_to_playlist_button">Играть</string>

@@ -221,7 +221,6 @@
     <string name="login_empty">No has añadido un servidor</string>
     <string name="login_title">Servidores</string>
     <string name="login_title_expanded">Servidores de Subsonic</string>
-    <string name="media_route_menu_title">Transmitir</string>
     <string name="menu_add_to_playlist_button">Añadir a una lista de reproducción</string>
     <string name="playlist_added_to_queue">¡Se añadió la lista a la cola!</string>
     <string name="menu_go_to_playlist_button">Reproducir</string>

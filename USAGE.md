@@ -203,8 +203,9 @@ Tap the artwork to show four buttons over it, and tap again to hide them.
 3. Adds this track again, followed by songs similar to it, right after the current track (Instant Mix). It uses [getSimilarSongs](https://opensubsonic.netlify.app/docs/endpoints/getsimilarsongs/) of the OpenSubsonic API, so which songs you get depends on your server. For example, Navidrome gets 15 similar artists from Last.fm, then 20 top songs from each.
 4. Opens the lyrics.
 
-Below the playback controls is a row of three buttons.
+Below the playback controls is a row of buttons.
 
+- **Devices** lets you pick where the music plays, see [Playing on another device](#playing-on-another-device). While it plays on a network speaker or a TV, that device's name shows under the button.
 - **Sleep timer** stops playback after 5 to 60 minutes, after a number of minutes you type in, or at the end of the current track. The volume fades out before playback pauses. While a timer is set, the time left shows under the button, and tapping it again lets you cancel.
 - **Lyrics** slides over to the lyrics. Tap it again or swipe back to return.
 - **Queue** opens the queue.
@@ -290,11 +291,14 @@ The spot is also saved as a bookmark on your server, if the server supports book
 
 ## Playing on another device
 
-Tempus can hand playback to a UPnP or DLNA renderer on your network, such as a TV, an AV receiver or a network speaker. Tap the cast button in the toolbar, pick the device, and the queue, the position and the play state move to it while the app keeps the controls. On the GitHub build the same button lists Chromecast devices and network renderers together. On the degoogled build the button shows a speaker icon, not the Cast icon.
+Tempus can hand playback to a UPnP or DLNA renderer on your network, such as a TV, an AV receiver or a network speaker. Tap **Devices** in the toolbar or at the bottom of the expanded player and pick the device. The queue moves to it with the position and the play state while the app keeps the controls. On the GitHub build Chromecast devices are listed with the network renderers under **Speakers and TVs**.
 
 <p align="left">
     <img src="mockup/usage/toolbar_github.png" width=400 style="margin-right:16px;">
     <img src="mockup/usage/toolbar_degoogled.png" width=400>
+</p>
+<p align="left">
+    <img src="mockup/usage/player_devices.png" width=400>
 </p>
 
 The renderer fetches the music from your server itself. Nothing is streamed through the phone, which is how the protocol works. Downloaded tracks are played from your server too, because the renderer cannot reach what is stored on the phone.

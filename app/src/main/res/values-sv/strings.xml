@@ -246,7 +246,6 @@
     <string name="login_empty">Ingen server tillagd</string>
     <string name="login_title">Subsonic-servrar</string>
     <string name="login_title_expanded">Subsonic-servrar</string>
-    <string name="media_route_menu_title">Casta</string>
     <string name="menu_add_to_playlist_button">Lägg till i spellista</string>
     <string name="playlist_added_to_queue">Spellistan har lagts till i kön</string>
     <string name="menu_go_to_playlist_button">Spela</string>
