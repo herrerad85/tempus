@@ -246,7 +246,6 @@
     <string name="login_empty">Server əlavə edilməyib</string>
     <string name="login_title">Subsonic serverləri</string>
     <string name="login_title_expanded">Subsonic serverləri</string>
-    <string name="media_route_menu_title">Cihaza yayımla</string>
     <string name="menu_add_to_playlist_button">Pleylistə əlavə et</string>
     <string name="playlist_added_to_queue">Pleylist növbəyə əlavə edildi</string>
     <string name="menu_go_to_playlist_button">Səsləndir</string>

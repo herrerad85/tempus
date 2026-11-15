@@ -49,7 +49,7 @@ class UpnpOutput(
         when (UpnpRoutesGate.change(Preferences.isUpnpEnabled(), routeProvider != null)) {
             UpnpRoutesGate.Change.REGISTER -> registerRoutes()
             UpnpRoutesGate.Change.RELEASE -> {
-                upnpPlayer?.let { listener?.onDropped(this, it) }
+                upnpPlayer?.let { listener?.onDropped(this, it, false) }
                 releaseRoutes()
             }
             UpnpRoutesGate.Change.NONE -> Unit
@@ -66,11 +66,11 @@ class UpnpOutput(
                 listener?.onConnected(this@UpnpOutput, player)
             }
 
-            override fun onRendererUnselected(device: UpnpDevice) {
+            override fun onRendererUnselected(device: UpnpDevice, reason: Int) {
                 val player = upnpPlayer
                 if (player == null || player.device != device) return
                 upnpPlayer = null
-                listener?.onDropped(this@UpnpOutput, player)
+                listener?.onDropped(this@UpnpOutput, player, reason == MediaRouter.UNSELECT_REASON_ROUTE_CHANGED)
                 player.release()
             }
         }

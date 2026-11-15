@@ -242,7 +242,6 @@
     <string name="login_empty">サーバーが追加されていません</string>
     <string name="login_title">Subsonicサーバー</string>
     <string name="login_title_expanded">Subsonicサーバー</string>
-    <string name="media_route_menu_title">キャスト</string>
     <string name="menu_login_button">ログイン</string>
     <string name="menu_add_to_playlist_button">プレイリストに追加</string>
     <string name="playlist_added_to_queue">プレイリストをキューに追加しました</string>

@@ -189,7 +189,6 @@
     <string name="login_empty">No has añadido ningún servidor</string>
     <string name="login_title">Servidores de Subsonic</string>
     <string name="login_title_expanded">Servidores de Subsonic</string>
-    <string name="media_route_menu_title">Emitir</string>
     <string name="menu_login_button">Iniciar sesión</string>
     <string name="menu_add_to_playlist_button">Añadir a la lista de reproducción</string>
     <string name="menu_edit_playlist_button">Editar lista de reproducción</string>
@@ -969,4 +968,6 @@
     <string name="settings_parametric_eq_imported">%1$s importado</string>
     <string name="settings_parametric_eq_invalid">No es un archivo ParametricEQ de AutoEq válido</string>
     <string name="settings_parametric_eq_per_ear">Los perfiles de dos canales (por oído) aún no son compatibles. Vuelve a exportarlo con un solo canal.</string>
+    <string name="devices_this_device">Este dispositivo</string>
+    <string name="devices_playing_on">Reproduciendo en %1$s</string>
 </resources>

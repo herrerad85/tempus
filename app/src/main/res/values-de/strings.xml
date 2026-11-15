@@ -248,7 +248,6 @@
     <string name="login_empty">Kein Server hinzugefügt</string>
     <string name="login_title">Subsonic-Server</string>
     <string name="login_title_expanded">Subsonic-Server</string>
-    <string name="media_route_menu_title">Streamen</string>
     <string name="menu_add_to_playlist_button">Zu Wiedergabeliste hinzufügen</string>
     <string name="playlist_added_to_queue">Wiedergabeliste zur Warteschlange hinzugefügt</string>
     <string name="menu_go_to_playlist_button">Wiedergabe</string>

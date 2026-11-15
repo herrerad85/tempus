@@ -179,7 +179,6 @@
     <string name="login_empty">Nessun server aggiunto</string>
     <string name="login_title">Server Subsonic</string>
     <string name="login_title_expanded">Server Subsonic</string>
-    <string name="media_route_menu_title">Trasmetti</string>
     <string name="menu_add_to_playlist_button">Aggiungi alla playlist</string>
     <string name="menu_download_all_button">Scarica tutto</string>
     <string name="menu_rate_album">Valuta l\'album</string>
@@ -554,4 +553,6 @@
     <string name="la_perms_nearby_devices_description">Necessaria per trovare altri dispositivi tramite UPnP e Chromecast.</string>
     <string name="search_title_empty_response">Nessun risultato.</string>
     <string name="search_description_empty_response">Abbiamo controllato la risposta del server ma era vuota.</string>
+    <string name="devices_this_device">Questo dispositivo</string>
+    <string name="devices_playing_on">Su %1$s</string>
 </resources>

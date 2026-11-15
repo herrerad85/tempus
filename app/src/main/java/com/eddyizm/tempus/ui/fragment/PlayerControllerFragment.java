@@ -88,6 +88,7 @@ public class PlayerControllerFragment extends Fragment {
     private com.eddyizm.tempus.lan.LanPlayerAdapter remotePlayer;
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener lanSwitchListener = (prefs, key) -> {
         if (Preferences.LAN_REMOTE_ENABLED.equals(key)) updateRemoteToggleVisibility();
+        if (Preferences.UPNP_ENABLED.equals(key)) updateDevicesButtonVisibility();
     };
     private boolean renderingRemote;
     private ViewPager2 playerMediaCoverViewPager;
@@ -104,6 +105,9 @@ public class PlayerControllerFragment extends Fragment {
     private ConstraintLayout playerQuickActionView;
     private ImageButton playerOpenQueueButton;
     private ImageButton playerOpenLyricsButton;
+    private LinearLayout playerOpenDevicesContainer;
+    private ImageButton playerOpenDevicesButton;
+    private TextView playerOpenDevicesLabel;
     private ImageButton playerTrackInfo;
     private LinearLayout ratingContainer;
     private LinearLayout sleepTimerContainer;
@@ -231,6 +235,9 @@ public class PlayerControllerFragment extends Fragment {
         playerQuickActionView = bind.getRoot().findViewById(R.id.player_quick_action_view);
         playerOpenQueueButton = bind.getRoot().findViewById(R.id.player_open_queue_button);
         playerOpenLyricsButton = bind.getRoot().findViewById(R.id.player_open_lyrics_button);
+        playerOpenDevicesContainer = bind.getRoot().findViewById(R.id.player_open_devices_container);
+        playerOpenDevicesButton = bind.getRoot().findViewById(R.id.player_open_devices_button);
+        playerOpenDevicesLabel = bind.getRoot().findViewById(R.id.player_open_devices_label);
         playerTrackInfo = bind.getRoot().findViewById(R.id.player_info_track);
         songRatingBar = bind.getRoot().findViewById(R.id.song_rating_bar);
         ratingContainer = bind.getRoot().findViewById(R.id.rating_container);
@@ -290,6 +297,13 @@ public class PlayerControllerFragment extends Fragment {
                 playerBottomSheetFragment.goToQueuePage();
             }
         });
+        playerOpenDevicesButton.setOnClickListener(view ->
+                com.eddyizm.tempus.ui.devices.DevicesSheetHost.show(requireActivity()));
+        Runnable showDevice = () -> com.eddyizm.tempus.ui.devices.DevicesButton.show(
+                playerOpenDevicesButton, playerOpenDevicesLabel, this::setTextIfChanged);
+        showDevice.run();
+        updateDevicesButtonVisibility();
+        com.eddyizm.tempus.ui.devices.DevicesButton.watch(getViewLifecycleOwner(), requireContext(), showDevice);
         playerOpenLyricsButton.setOnClickListener(view -> {
             int currentItem = playerMediaCoverViewPager.getCurrentItem();
             if (currentItem == 0) {
@@ -1116,6 +1130,12 @@ public class PlayerControllerFragment extends Fragment {
     private void updateRemoteToggleVisibility() {
         if (bind == null) return;
         bind.playerRemoteToggle.setVisibility(com.eddyizm.tempus.lan.LanDevicePicker.isOffered() ? View.VISIBLE : View.GONE);
+    }
+
+    private void updateDevicesButtonVisibility() {
+        if (bind == null) return;
+        playerOpenDevicesContainer.setVisibility(
+                com.eddyizm.tempus.ui.devices.DevicesSheetHost.isOffered(requireContext()) ? View.VISIBLE : View.GONE);
     }
 
     @Override
