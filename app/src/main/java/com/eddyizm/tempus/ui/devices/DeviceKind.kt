@@ -11,6 +11,7 @@ internal enum class DeviceKind(@get:DrawableRes val icon: Int, val playsElsewher
     TV(R.drawable.ic_tv, true),
     SPEAKER_GROUP(R.drawable.ic_speaker_group, true),
     CAST(R.drawable.ic_cast, true),
+    TEMPUS_PLAYER(R.drawable.ic_lan_remote, true),
 }
 
 internal data class ActiveDevice(val kind: DeviceKind, val name: String?)
@@ -26,3 +27,5 @@ internal fun routeKind(isUpnp: Boolean, deviceType: Int): DeviceKind = when {
 internal fun phoneDevice(isBluetooth: Boolean, name: String?): ActiveDevice =
     if (isBluetooth) ActiveDevice(DeviceKind.BLUETOOTH, name?.takeIf { it.isNotBlank() })
     else ActiveDevice(DeviceKind.THIS_DEVICE, null)
+
+internal fun tempusPlayerName(serviceName: String): String = serviceName.removePrefix("Tempus ")

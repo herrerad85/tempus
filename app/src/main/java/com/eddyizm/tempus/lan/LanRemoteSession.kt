@@ -45,6 +45,8 @@ object LanRemoteSession {
     @JvmStatic fun state(): LiveData<LanRemoteState> = updates
     @JvmStatic fun current(): LanRemoteState = updates.value ?: LanRemoteState()
     @JvmStatic fun isActive(): Boolean = current().active
+    @JvmStatic fun targetName(): String? = target?.serviceName
+    @JvmStatic fun reconnect(context: Context) { connect(context, target ?: return) }
     @JvmStatic fun queueState(): LiveData<List<Child>> = queueUpdates
     @JvmStatic fun queueItems(): List<Child> = queueUpdates.value ?: emptyList()
     @JvmStatic fun queueIsCurrent(): Boolean = loadedRevision == current().revision

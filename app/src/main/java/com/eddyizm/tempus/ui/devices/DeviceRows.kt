@@ -1,5 +1,6 @@
 package com.eddyizm.tempus.ui.devices
 
+import androidx.annotation.StringRes
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -79,9 +80,9 @@ internal fun SearchingDots(visible: Boolean = true) {
 }
 
 @Composable
-internal fun EmptyRow() {
+internal fun EmptyRow(@StringRes text: Int = R.string.devices_none) {
     Text(
-        stringResource(R.string.devices_none),
+        stringResource(text),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)

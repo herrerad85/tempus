@@ -51,20 +51,24 @@ object DevicesSheetHost {
 private fun DevicesSheet(activity: FragmentActivity, onDismiss: () -> Unit) {
     val sources = remember { deviceSources(activity) }
     val current = rememberCurrentDevice(activity, sources)
+    var closed by remember { mutableStateOf(false) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val sheet = remember {
         DevicesSheetScope(
+            activity = activity,
             sources = sources,
-            close = { scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() } },
+            close = { closed = true; scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() } },
+            closeNow = { closed = true; onDismiss() },
+            isClosed = { closed },
         )
     }
 
     val colorScheme = rememberAppColorScheme()
     MaterialTheme(colorScheme = colorScheme, typography = AppTypography) {
         ModalBottomSheet(
-            onDismissRequest = onDismiss,
+            onDismissRequest = sheet.closeNow,
             sheetState = sheetState,
             containerColor = colorScheme.surfaceContainerLow,
             contentColor = colorScheme.onSurface,

@@ -87,8 +87,7 @@ public class PlayerControllerFragment extends Fragment {
     private InnerFragmentPlayerControllerBinding bind;
     private com.eddyizm.tempus.lan.LanPlayerAdapter remotePlayer;
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener lanSwitchListener = (prefs, key) -> {
-        if (Preferences.LAN_REMOTE_ENABLED.equals(key)) updateRemoteToggleVisibility();
-        if (Preferences.UPNP_ENABLED.equals(key)) updateDevicesButtonVisibility();
+        if (Preferences.LAN_REMOTE_ENABLED.equals(key) || Preferences.UPNP_ENABLED.equals(key)) updateDevicesButtonVisibility();
     };
     private boolean renderingRemote;
     private ViewPager2 playerMediaCoverViewPager;
@@ -141,7 +140,6 @@ public class PlayerControllerFragment extends Fragment {
         com.eddyizm.tempus.App.getInstance().getPreferences().registerOnSharedPreferenceChangeListener(lanSwitchListener);
         com.eddyizm.tempus.lan.LanRemoteSession.state().observe(getViewLifecycleOwner(), state -> refreshPlaybackDestination());
         com.eddyizm.tempus.lan.LanRemoteSession.queueState().observe(getViewLifecycleOwner(), queue -> refreshPlaybackDestination());
-        bind.playerRemoteToggle.setOnClickListener(v -> com.eddyizm.tempus.lan.LanDevicePicker.toggle(requireActivity()));
         initOverflowButton();
         initQuickActionView();
         initCoverLyricsSlideView();
@@ -180,15 +178,11 @@ public class PlayerControllerFragment extends Fragment {
 
     private void refreshPlaybackDestination() {
         if (bind == null || remotePlayer == null) return;
-        updateRemoteToggleVisibility();
         updateDevicesButtonVisibility();
         if (com.eddyizm.tempus.lan.LanRemoteSession.isActive()) {
             remotePlayer.refresh();
             bind.nowPlayingMediaControllerView.setPlayer(remotePlayer);
             com.eddyizm.tempus.lan.LanRemoteState state = com.eddyizm.tempus.lan.LanRemoteSession.current();
-            bind.playerRemoteToggle.setText(getString(R.string.lan_operating_on, state.getName()));
-            bind.playerRemoteToggle.setContentDescription(getString(R.string.lan_controlling, state.getName()));
-            bind.playerRemoteToggle.setSelected(true);
             bind.nowPlayingMediaControllerView.setShowShuffleButton(true);
             bind.nowPlayingMediaControllerView.setRepeatToggleModes(RepeatModeUtil.REPEAT_TOGGLE_MODE_ALL | RepeatModeUtil.REPEAT_TOGGLE_MODE_ONE);
             bind.nowPlayingMediaControllerView.setShowRewindButton(false);
@@ -209,9 +203,6 @@ public class PlayerControllerFragment extends Fragment {
                 updateSleepTimerUI();
             } finally { renderingRemote = false; }
         } else {
-            bind.playerRemoteToggle.setText(R.string.lan_play_on);
-            bind.playerRemoteToggle.setContentDescription(getString(R.string.lan_play_on));
-            bind.playerRemoteToggle.setSelected(false);
             buttonFavorite.setEnabled(true);
             MediaBrowser browser = getBrowser();
             if (browser != null) {
@@ -263,13 +254,13 @@ public class PlayerControllerFragment extends Fragment {
                 if (selectedEq != 1) {
                     popup.getMenu().removeItem(R.id.action_open_equalizer);
                 }
-                if (!com.eddyizm.tempus.lan.LanDevicePicker.isOffered()) {
+                if (!com.eddyizm.tempus.ui.devices.DevicesSheetHost.isOffered(requireContext())) {
                     popup.getMenu().removeItem(R.id.action_lan_playback);
                 }
 
                 popup.setOnMenuItemClickListener(item -> {
                     if (item.getItemId() == R.id.action_lan_playback) {
-                        com.eddyizm.tempus.lan.LanDevicePicker.toggle(requireActivity());
+                        com.eddyizm.tempus.ui.devices.DevicesSheetHost.show(requireActivity());
                         return true;
                     }
                     if (item.getItemId() == R.id.action_open_equalizer) {
@@ -1125,11 +1116,6 @@ public class PlayerControllerFragment extends Fragment {
     public void onResume() {
         super.onResume();
         bindMediaService();
-    }
-
-    private void updateRemoteToggleVisibility() {
-        if (bind == null) return;
-        bind.playerRemoteToggle.setVisibility(com.eddyizm.tempus.lan.LanDevicePicker.isOffered() ? View.VISIBLE : View.GONE);
     }
 
     private void updateDevicesButtonVisibility() {
