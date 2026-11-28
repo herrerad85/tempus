@@ -12,6 +12,14 @@ class CastOutputTest {
     private val output = CastOutput(mock<Context>()) {}
 
     @Test
+    fun beforeLoadSetsPausedWhenGivenFalse() {
+        val player = mock<Player>()
+        output.beforeLoad(player, false)
+        verify(player).playWhenReady = false
+        verifyNoMoreInteractions(player)
+    }
+
+    @Test
     fun beforeLoadSetsPlayingWhenGivenTrue() {
         val player = mock<Player>()
         output.beforeLoad(player, true)

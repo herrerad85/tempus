@@ -43,7 +43,7 @@ class CastOutput(
     }
 
     override fun beforeLoad(player: Player, playWhenReady: Boolean) {
-        if (playWhenReady) player.playWhenReady = true
+        player.playWhenReady = playWhenReady
     }
 
     override fun release() {
